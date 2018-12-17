@@ -56,13 +56,9 @@ class RenderGANModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
 
     def set_input(self, input):
-        AtoB = self.opt.direction == 'AtoB'
-        self.real_tex_A = input['A' if AtoB else 'B'].to(self.device)
-        self.real_tex_B = input['B' if AtoB else 'A'].to(self.device)
+        self.real_tex_A = input['A'].to(self.device)
+        self.real_tex_B = input['B'].to(self.device)
         self.real_render_B = self.render_layer(self.real_tex_B)
-
-        # TODO what is this?
-        #self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
         self.fake_tex_B = self.netG(self.real_tex_A)

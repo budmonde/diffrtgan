@@ -9,6 +9,7 @@ import pyredner
 class PlaneRenderer(object):
     def __init__(self, out_sz, num_samples, device):
         super(PlaneRenderer, self).__init__()
+        self.device = device
 
         self.camera = pyredner.Camera(
             position     = torch.tensor([0.0, 0.0, -5.0]),
@@ -20,30 +21,30 @@ class PlaneRenderer(object):
 
         self.materials = [
             pyredner.Material(diffuse_reflectance = torch.tensor(
-                [1.0, 1.0, 1.0], device=device)),
+                [1.0, 1.0, 1.0], device=self.device)),
             pyredner.Material(diffuse_reflectance = torch.tensor(
-                [0.0, 0.0, 0.0], device=device))
+                [0.0, 0.0, 0.0], device=self.device)),
             ]
 
         self.shapes = [
             pyredner.Shape(
                 torch.tensor([
-                    [-2.1, -2.1, 2.0],
+                    [-2.1, -2.1, 8.0],
                     [-2.1, 2.1, 0.0],
-                    [2.1, -2.1, 2.0],
+                    [2.1, -2.1, 8.0],
                     [2.1, 2.1, 0.0]],
-                    device=device),
+                    device=self.device),
                 torch.tensor([
                     [0, 1, 2],
                     [1, 3, 2]],
                     dtype = torch.int32,
-                    device=device),
+                    device=self.device),
                 torch.tensor([
                     [1.0, 1.0],
                     [1.0, 0.0],
                     [0.0, 1.0],
                     [0.0, 0.0]],
-                    device=device),
+                    device=self.device),
                 None,
                 0),
             pyredner.Shape(
@@ -52,12 +53,12 @@ class PlaneRenderer(object):
                     [1.0, -1.0, -7.0],
                     [-1.0, 1.0, -7.0],
                     [1.0, 1.0, -7.0]],
-                    device=device),
+                    device=self.device),
                 torch.tensor([
                     [0, 1, 2],
                     [1, 3, 2]],
                     dtype = torch.int32,
-                    device=device),
+                    device=self.device),
                 None,
                 None,
                 1)]
