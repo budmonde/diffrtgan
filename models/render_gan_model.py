@@ -41,8 +41,9 @@ class RenderGANModel(BaseModel):
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
         bkgd_color = (0.7, 0.0, 0.7)
-        bkgd = torch.tensor(bkgd_color)\
-                    .expand(opt.fineSize, opt.fineSize, len(bkgd_color))
+        #bkgd = torch.tensor(bkgd_color)\
+        #            .expand(opt.fineSize, opt.fineSize, len(bkgd_color))
+        bkgd = None
 
         vis_bkgd = torch.tensor(imread('./datasets/textures/transparency/transparency.png'), dtype=torch.float32)
 

@@ -11,8 +11,9 @@ inp_path = "datasets/textures/transparent_checkerboard/train/transparent_checker
 crop_fn = CornerCrop(fineSize)
 #bkgd = torch.tensor((0.7, 0.0, 0.7))\
 #            .expand(fineSize, fineSize, 3)
-bkgd = torch.tensor(
-        crop_fn(imread(bkgd_path)), dtype=torch.float32, device=device)
+#bkgd = torch.tensor(
+#        crop_fn(imread(bkgd_path)), dtype=torch.float32, device=device)
+bkgd = None
 inp = torch.tensor(
         crop_fn(imread(inp_path)), dtype=torch.float32, device=device)
 

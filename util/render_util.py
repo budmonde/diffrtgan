@@ -256,11 +256,25 @@ class CompositLayer(nn.Module):
     def __init__(self, bkgd, size, device):
         super(CompositLayer, self).__init__()
         #self.crop = RandomCrop(size)
+        self.size = size
+        self.device = device
         self.crop = CornerCrop(size)
-        self.bkgd = torch.tensor(self.crop(bkgd), device=device)
+        # TODO: this is probably not the best way to do this
+        self.rng = bkgd is None
+
+        if self.rng:
+            self.bkgd = None
+        else:
+            self.bkgd = torch.tensor(self.crop(bkgd), device=device)
 
     def forward(self, input):
         # input is in format HWC
+        if self.rng:
+            bkgd_color = (random.uniform(0.0, 1.0),
+                          random.uniform(0.0, 1.0),
+                          random.uniform(0.0, 1.0))
+            self.bkgd = torch.tensor(bkgd_color, device=self.device)\
+                             .expand(self.size, self.size, len(bkgd_color))
         alpha = input[:,:,-1:]
         return alpha * input[:,:,:-1] + (1 - alpha) * self.bkgd
 
