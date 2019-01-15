@@ -12,7 +12,7 @@ class RenderGANModel(BaseModel):
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
-        parser.add_argument('--mesh_path', type=str, default='./datasets/scenes/uv_debug.obj', help='Path of mesh to render')
+        parser.add_argument('--mesh_path', type=str, default='./datasets/meshes/octavia/octavia_uv.obj', help='Path of mesh to render')
         return parser
 
     def initialize(self, opt):

@@ -3,11 +3,11 @@ import torch
 from util.render_util import MeshRenderLayer
 from util.image_util import imread, imwrite
 
-mesh_path = "datasets/scenes/uv_debug.obj"
+mesh_path = "datasets/meshes/octavia/octavia_uv.obj"
 fineSize = 256
 num_samples = 4
 device = torch.device('cuda:0')
-inp_path = "datasets/checkerboard/train/checkerboard.png"
+inp_path = "datasets/textures/checkerboard/train/checkerboard.png"
 
 inp = torch.tensor(imread(inp_path), dtype=torch.float32, device=device)
 

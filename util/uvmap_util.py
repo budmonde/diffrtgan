@@ -1,12 +1,13 @@
+import argparse
 import math
 import re
 
-def project_hemi(inp_fn, out_fn):
+def hemispherical_uv_map(inp_path, out_path):
     vertices_pool = []
     uv_pool = []
 
-    with open(out_fn, 'w+') as f:
-        for og_line in open(inp_fn, 'r'):
+    with open(out_path, 'w+') as f:
+        for og_line in open(inp_path, 'r'):
             line = og_line.strip()
             splitted = re.split('\ +', line)
             if splitted[0] == 'v':
@@ -27,4 +28,10 @@ def project_hemi(inp_fn, out_fn):
             else:
                 f.write(og_line)
 
-project_hemi('datasets/scenes/octavia_clean.obj', 'datasets/scenes/uv_debug.obj')
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input_path', type=str, required=True, help='Input mesh path')
+    parser.add_argument('--output_path', type=str, required=True, help='Output mesh path')
+    opt = parser.parse_args()
+
+    hemispherical_uv_map(opt.input_path, opt.output_path)
