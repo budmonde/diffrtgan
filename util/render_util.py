@@ -152,7 +152,11 @@ class PlaneRenderer(object):
 
     def __call__(self, sample):
         # assumer sample is of type Tensor
-        new_material = pyredner.Material(diffuse_reflectance = sample)
+        new_material = pyredner.Material(
+                diffuse_reflectance = sample,
+                specular_reflectance = torch.tensor(
+                    [0.8, 0.8, 1.0], device=self.device)
+                )
         self.materials[0] = new_material
         scene = pyredner.Scene(
             self.camera, self.shapes, self.materials, self.lights)
@@ -172,6 +176,14 @@ class RandomCrop(object):
         y = np.random.choice(input.shape[0] - self.size)
         x = np.random.choice(input.shape[1] - self.size)
         return input[y : y + self.size, x : x + self.size, : ]
+
+class CornerCrop(object):
+    def __init__(self, size):
+        super(CornerCrop, self).__init__()
+        self.size = size
+
+    def __call__(self, input):
+        return input[:self.size,:self.size,:]
 
 class ToTensor(object):
     def __init__(self):
@@ -240,6 +252,18 @@ class CHW2HWCLayer(nn.Module):
     def forward(self, input):
         return input.transpose(0, 1).transpose(1, 2).contiguous()
 
+class CompositLayer(nn.Module):
+    def __init__(self, bkgd, size, device):
+        super(CompositLayer, self).__init__()
+        #self.crop = RandomCrop(size)
+        self.crop = CornerCrop(size)
+        self.bkgd = torch.tensor(self.crop(bkgd), device=device)
+
+    def forward(self, input):
+        # input is in format HWC
+        alpha = input[:,:,-1:]
+        return alpha * input[:,:,:-1] + (1 - alpha) * self.bkgd
+
 class NormalizeLayer(nn.Module):
     def __init__(self, mean, std):
         super(NormalizeLayer, self).__init__()
@@ -265,13 +289,31 @@ class AddBatchDimLayer(nn.Module):
     def forward(self, input):
         return input.unsqueeze(0)
 
+class NormalizedCompositLayer(nn.Module):
+    def __init__(self, bkgd, out_sz, device):
+        super(NormalizedCompositLayer, self).__init__()
+        self.model = nn.Sequential(
+                StripBatchDimLayer(),
+                NormalizeLayer(-1.0, 2.0),
+                CHW2HWCLayer(),
+                CompositLayer(bkgd, out_sz, device),
+                HWC2CHWLayer(),
+                NormalizeLayer(0.5, 0.5),
+                AddBatchDimLayer(),
+        )
+
+    def forward(self, input):
+        out = self.model.forward(input)
+        return out
+
 class NormalizedRenderLayer(nn.Module):
-    def __init__(self, mesh_path, out_sz, num_samples, device):
+    def __init__(self, mesh_path, bkgd, out_sz, num_samples, device):
         super(NormalizedRenderLayer, self).__init__()
         self.model = nn.Sequential(
                 StripBatchDimLayer(),
                 NormalizeLayer(-1.0, 2.0),
                 CHW2HWCLayer(),
+                CompositLayer(bkgd, out_sz, device),
                 MeshRenderLayer(mesh_path, out_sz, num_samples, device),
                 HWC2CHWLayer(),
                 NormalizeLayer(0.5, 0.5),

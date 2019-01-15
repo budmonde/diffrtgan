@@ -1,6 +1,6 @@
 import torch
 
-from util.render_util import MeshRenderLayer
+from util.render_util import MeshRenderLayer, NormalizedCompositLayer
 from util.image_util import imread, imwrite
 
 mesh_path = "datasets/meshes/octavia/octavia_uv.obj"
