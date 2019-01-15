@@ -1,10 +1,93 @@
 import random
 import numpy as np
+import math
 
 import torch
 import torch.nn as nn
 
 import pyredner
+
+class MeshRenderer(object):
+    def __init__(self, mesh_path, out_sz, num_samples, device):
+        super(MeshRenderer, self).__init__()
+        self.device = device
+
+        self.out_sz = out_sz
+        self.camera = pyredner.Camera(
+            position     = torch.tensor([0.0, 4.0, -4.0]),
+            look_at      = torch.tensor([0.0, 0.0, 0.0]),
+            up           = torch.tensor([0.0, 1.0, 0.0]),
+            fov          = torch.tensor([45.0]),
+            clip_near    = 0.01,
+            resolution   = (self.out_sz, self.out_sz))
+
+        self.materials = [
+            pyredner.Material(diffuse_reflectance = torch.tensor(
+                [1.0, 1.0, 1.0], device=self.device)),
+            pyredner.Material(diffuse_reflectance = torch.tensor(
+                [0.0, 0.0, 0.0], device=self.device)),
+            ]
+
+        self.shapes = [
+            # TODO: GPU device choice is super sketchy
+            pyredner.Shape(
+                *pyredner.load_obj(mesh_path),
+                0),
+            pyredner.Shape(
+                torch.tensor([
+                    [-4.0,  7.0, -4.0],
+                    [ 4.0,  7.0, -4.0],
+                    [ 4.0,  7.0,  4.0],
+                    [-4.0,  7.0,  4.0]],
+                    device=self.device),
+                torch.tensor([
+                    [0, 1, 2],
+                    [0, 2, 2]],
+                    dtype = torch.int32,
+                    device=self.device),
+                None,
+                None,
+                1)]
+
+        self.lights = [pyredner.Light(1, torch.tensor([3.0, 3.0, 3.0]))]
+
+        self.num_samples = num_samples
+
+    def __call__(self, sample):
+        # Set Material
+        # assumer sample is of type Tensor
+        new_material = pyredner.Material(
+                diffuse_reflectance = sample
+                )
+        self.materials[0] = new_material
+        # Sample Camera Position
+        phi = random.uniform(0.0, 1.0) * math.pi * 2
+        d = 3.0 + random.uniform(0.0, 1.0) * 3.0
+        px, pz = math.cos(phi), math.sin(phi)
+        # Sample Camera Look-at
+        lx, ly, lz = random.uniform(-1.0, 1.0),\
+                     random.uniform(-1.0, 1.0),\
+                     random.uniform(-1.0, 1.0)
+        # Sample Camera Up-vector
+        ux, uz = random.uniform(0.0, 0.2), random.uniform(0.0, 0.2)
+
+        self.camera = pyredner.Camera(
+            position     = torch.tensor([px, 1.0, pz]) * d,
+            look_at      = torch.tensor([lx, ly, lz]),
+            up           = torch.tensor([ux, 1.0, uz]),
+            fov          = torch.tensor([45.0]),
+            clip_near    = 0.01,
+            resolution   = (self.out_sz, self.out_sz))
+
+        # Define Scene
+        scene = pyredner.Scene(
+            self.camera, self.shapes, self.materials, self.lights)
+        args = pyredner.RenderFunction.serialize_scene(
+            scene = scene,
+            num_samples = self.num_samples,
+            max_bounces = 1)
+        seed = random.randint(0, 255)
+        return pyredner.RenderFunction.apply(seed, *args)
 
 class PlaneRenderer(object):
     def __init__(self, out_sz, num_samples, device):
@@ -123,6 +206,15 @@ class Normalize(object):
     def __call__(self, input):
         return (input - self.mean) / self.std
 
+class MeshRenderLayer(nn.Module):
+    def __init__(self, mesh_path, out_sz, num_samples, device):
+        super(MeshRenderLayer, self).__init__()
+        self.renderer = MeshRenderer(mesh_path, out_sz, num_samples, device)
+
+    def forward(self, input):
+        out = self.renderer(input)
+        return out
+
 class PlaneRenderLayer(nn.Module):
     def __init__(self, out_sz, num_samples, device):
         super(PlaneRenderLayer, self).__init__()
@@ -174,13 +266,13 @@ class AddBatchDimLayer(nn.Module):
         return input.unsqueeze(0)
 
 class NormalizedRenderLayer(nn.Module):
-    def __init__(self, out_sz, num_samples, device):
+    def __init__(self, mesh_path, out_sz, num_samples, device):
         super(NormalizedRenderLayer, self).__init__()
         self.model = nn.Sequential(
                 StripBatchDimLayer(),
                 NormalizeLayer(-1.0, 2.0),
                 CHW2HWCLayer(),
-                PlaneRenderLayer(out_sz, num_samples, device),
+                MeshRenderLayer(mesh_path, out_sz, num_samples, device),
                 HWC2CHWLayer(),
                 NormalizeLayer(0.5, 0.5),
                 AddBatchDimLayer(),

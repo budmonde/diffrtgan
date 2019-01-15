@@ -12,8 +12,7 @@ class RenderGANModel(BaseModel):
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
-        # default RenderGAN did not use dropout
-        parser.set_defaults(no_dropout=True)
+        parser.add_argument('--mesh_path', type=str, default='./datasets/scenes/uv_debug.obj', help='Path of mesh to render')
         return parser
 
     def initialize(self, opt):
@@ -37,7 +36,7 @@ class RenderGANModel(BaseModel):
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
         # TODO make num samples configurable
-        self.render_layer = NormalizedRenderLayer(opt.fineSize, 4, self.device)
+        self.render_layer = NormalizedRenderLayer(opt.mesh_path, opt.fineSize, 4, self.device)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
