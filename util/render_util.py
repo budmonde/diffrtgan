@@ -57,7 +57,9 @@ class MeshRenderer(object):
         # Set Material
         # assumer sample is of type Tensor
         new_material = pyredner.Material(
-                diffuse_reflectance = sample
+                diffuse_reflectance = sample,
+                specular_reflectance = torch.tensor(
+                    [0.7, 0.7, 0.7], device=self.device),
                 )
         self.materials[0] = new_material
         # Sample Camera Position
