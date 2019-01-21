@@ -63,20 +63,25 @@ class MeshRenderer(object):
                 )
         self.materials[0] = new_material
         # Sample Camera Position
-        phi = random.uniform(0.0, 1.0) * math.pi * 2
         d = 3.0 + random.uniform(0.0, 1.0) * 3.0
-        px, pz = math.cos(phi), math.sin(phi)
+        phi = random.uniform(0.0, 1.0) * math.pi * 2
+        theta = math.acos(1 - random.uniform(0.0, 1.0))
+        px, py, pz = math.cos(phi)*math.sin(theta),\
+                     math.cos(theta),\
+                     math.sin(phi)*math.sin(theta)
         # Sample Camera Look-at
         lx, ly, lz = random.uniform(-1.0, 1.0),\
                      random.uniform(-1.0, 1.0),\
                      random.uniform(-1.0, 1.0)
         # Sample Camera Up-vector
-        ux, uz = random.uniform(0.0, 0.2), random.uniform(0.0, 0.2)
+        ux, uy, uz = random.uniform(-0.2, 0.2),\
+                     1.0,\
+                     random.uniform(-0.2, 0.2)
 
         self.camera = pyredner.Camera(
-            position     = torch.tensor([px, 1.0, pz]) * d,
+            position     = torch.tensor([px, py, pz]) * d,
             look_at      = torch.tensor([lx, ly, lz]),
-            up           = torch.tensor([ux, 1.0, uz]),
+            up           = torch.tensor([ux, uy, uz]),
             fov          = torch.tensor([45.0]),
             clip_near    = 0.01,
             resolution   = (self.out_sz, self.out_sz))
