@@ -35,21 +35,29 @@ class MeshRenderer(object):
                 0),
             pyredner.Shape(
                 torch.tensor([
-                    [-4.0,  7.0, -4.0],
-                    [ 4.0,  7.0, -4.0],
-                    [ 4.0,  7.0,  4.0],
-                    [-4.0,  7.0,  4.0]],
+                    # on top
+                    [-4.0,   7.0, -4.0],
+                    [ 4.0,   7.0, -4.0],
+                    [ 4.0,   7.0,  4.0],
+                    [-4.0,   7.0,  4.0],
+                    # on bottom
+                    [-4.0,  -7.0, -4.0],
+                    [ 4.0,  -7.0, -4.0],
+                    [ 4.0,  -7.0,  4.0],
+                    [-4.0,  -7.0,  4.0]],
                     device=self.device),
                 torch.tensor([
                     [0, 1, 2],
-                    [0, 2, 2]],
+                    [0, 2, 3],
+                    [4, 5, 6],
+                    [4, 6, 7]],
                     dtype = torch.int32,
                     device=self.device),
                 None,
                 None,
                 1)]
 
-        self.lights = [pyredner.Light(1, torch.tensor([3.0, 3.0, 3.0]))]
+        self.lights = [pyredner.Light(1, torch.tensor([2.0, 2.0, 2.0]))]
 
         self.num_samples = num_samples
 
