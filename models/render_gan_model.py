@@ -15,7 +15,7 @@ class RenderGANModel(BaseModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         parser.set_defaults(input_nc=4)
-        parser.add_argument('--mesh_path', type=str, default='./datasets/meshes/octavia/octavia_uv.obj', help='Path of mesh to render')
+        parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/hemi_proj', help='Path of mesh pool to render')
         # TODO: fix image transform so that it looks at texture_nc for dim#
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
         return parser
@@ -48,7 +48,7 @@ class RenderGANModel(BaseModel):
         vis_bkgd = torch.tensor(imread('./datasets/textures/transparency/transparency.png'), dtype=torch.float32)
 
         # TODO make num samples configurable
-        self.render_layer = NormalizedRenderLayer(opt.mesh_path, bkgd, opt.fineSize, 4, self.device)
+        self.render_layer = NormalizedRenderLayer(opt.meshes_path, bkgd, opt.fineSize, 4, self.device)
         self.composit_layer = NormalizedCompositLayer(vis_bkgd, opt.fineSize, self.device)
 
         if self.isTrain:

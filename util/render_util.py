@@ -1,3 +1,4 @@
+import os
 import random
 import numpy as np
 import math
@@ -7,8 +8,11 @@ import torch.nn as nn
 
 import pyredner
 
+def get_children_path_list(path):
+    return ['{}/{}'.format(path, f) for f in os.listdir(path)]
+
 class MeshRenderer(object):
-    def __init__(self, mesh_path, out_sz, num_samples, device):
+    def __init__(self, meshes_path, out_sz, num_samples, device):
         super(MeshRenderer, self).__init__()
         self.device = device
 
@@ -28,11 +32,14 @@ class MeshRenderer(object):
                 [0.0, 0.0, 0.0], device=self.device)),
             ]
 
+        self.meshes = list(map(
+            lambda mesh: pyredner.Shape(*pyredner.load_obj(mesh), 0),
+            get_children_path_list(meshes_path)
+        ))
+
         self.shapes = [
             # TODO: GPU device choice is super sketchy
-            pyredner.Shape(
-                *pyredner.load_obj(mesh_path),
-                0),
+            self.meshes[0],
             pyredner.Shape(
                 torch.tensor([
                     # on top
@@ -70,6 +77,8 @@ class MeshRenderer(object):
                     [0.7, 0.7, 0.7], device=self.device),
                 )
         self.materials[0] = new_material
+        # Sample mesh choice
+        self.shapes[0] = random.choice(self.meshes)
         # Sample Camera Position
         d = 3.0 + random.uniform(0.0, 1.0) * 3.0
         phi = random.uniform(0.0, 1.0) * math.pi * 2

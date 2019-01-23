@@ -21,10 +21,10 @@ composit_layer = CompositLayer(bkgd, fineSize, device)
 composit = composit_layer(inp)
 imwrite(composit, "debug/test_composit_out.png")
 
-mesh_path = "datasets/meshes/octavia/octavia_uv.obj"
+meshes_path = "datasets/meshes/hemi_proj"
 fineSize = 256
 num_samples = 4
 
-render_layer = MeshRenderLayer(mesh_path, fineSize, num_samples, device)
+render_layer = MeshRenderLayer(meshes_path, fineSize, num_samples, device)
 out = render_layer(composit)
 imwrite(out, "debug/test_render_composit_out.png")
