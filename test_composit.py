@@ -21,7 +21,7 @@ composit_layer = CompositLayer(bkgd, fineSize, device)
 composit = composit_layer(inp)
 imwrite(composit, "debug/test_composit_out.png")
 
-meshes_path = "datasets/meshes/hemi_proj"
+meshes_path = "datasets/meshes/new_hemi"
 fineSize = 256
 num_samples = 4
 

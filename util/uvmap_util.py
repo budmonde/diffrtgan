@@ -1,6 +1,7 @@
 import argparse
 import math
 import re
+import os
 
 def hemispherical_uv_map(inp_path, out_path):
     vertices_pool = []
@@ -30,8 +31,13 @@ def hemispherical_uv_map(inp_path, out_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_path', type=str, required=True, help='Input mesh path')
-    parser.add_argument('--output_path', type=str, required=True, help='Output mesh path')
+    parser.add_argument('--inp_path', type=str, required=True, help='Input mesh path')
+    parser.add_argument('--out_path', type=str, required=True, help='Output mesh path')
     opt = parser.parse_args()
 
-    hemispherical_uv_map(opt.input_path, opt.output_path)
+    fn_list = os.listdir(opt.inp_path)
+    for fn in fn_list:
+        inp = os.path.join(opt.inp_path, fn)
+        out = os.path.join(opt.out_path, fn)
+        print("{} -> {}".format(inp, out))
+        hemispherical_uv_map(inp, out)

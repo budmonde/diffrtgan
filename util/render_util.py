@@ -32,14 +32,12 @@ class MeshRenderer(object):
                 [0.0, 0.0, 0.0], device=self.device)),
             ]
 
-        self.meshes = list(map(
-            lambda mesh: pyredner.Shape(*pyredner.load_obj(mesh), 0),
-            get_children_path_list(meshes_path)
-        ))
+        self.meshes = get_children_path_list(meshes_path)
 
+        # TODO: is none initialization okay?
         self.shapes = [
             # TODO: GPU device choice is super sketchy
-            self.meshes[0],
+            None,
             pyredner.Shape(
                 torch.tensor([
                     # on top
@@ -78,7 +76,9 @@ class MeshRenderer(object):
                 )
         self.materials[0] = new_material
         # Sample mesh choice
-        self.shapes[0] = random.choice(self.meshes)
+        #TODO: loads new mesh every single call :/
+        mesh_path = random.choice(self.meshes)
+        self.shapes[0] = pyredner.Shape(*pyredner.load_obj(mesh_path), 0)
         # Sample Camera Position
         d = 3.0 + random.uniform(0.0, 1.0) * 3.0
         phi = random.uniform(0.0, 1.0) * math.pi * 2
