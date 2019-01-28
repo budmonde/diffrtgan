@@ -1,6 +1,8 @@
+from skimage.transform import resize
+
 import torch.utils.data as data
-from PIL import Image
-import torchvision.transforms as transforms
+
+from util.transform_util import *
 
 
 class BaseDataset(data.Dataset):
@@ -25,30 +27,30 @@ def get_transform(opt):
     transform_list = []
     if opt.resize_or_crop == 'resize_and_crop':
         osize = [opt.loadSize, opt.loadSize]
-        transform_list.append(transforms.Resize(osize, Image.BICUBIC))
-        transform_list.append(transforms.RandomCrop(opt.fineSize))
+        transform_list.append(Resize(osize))
+        transform_list.append(RandomCrop(opt.fineSize))
     elif opt.resize_or_crop == 'crop':
-        transform_list.append(transforms.RandomCrop(opt.fineSize))
+        transform_list.append(RandomCrop(opt.fineSize))
     elif opt.resize_or_crop == 'scale_width':
-        transform_list.append(transforms.Lambda(
+        transform_list.append(Lambda(
             lambda img: __scale_width(img, opt.fineSize)))
     elif opt.resize_or_crop == 'scale_width_and_crop':
-        transform_list.append(transforms.Lambda(
+        transform_list.append(Lambda(
             lambda img: __scale_width(img, opt.loadSize)))
-        transform_list.append(transforms.RandomCrop(opt.fineSize))
+        transform_list.append(RandomCrop(opt.fineSize))
     elif opt.resize_or_crop == 'none':
-        transform_list.append(transforms.Lambda(
+        transform_list.append(Lambda(
             lambda img: __adjust(img)))
     else:
         raise ValueError('--resize_or_crop %s is not a valid option.' % opt.resize_or_crop)
 
     if opt.isTrain and not opt.no_flip:
-        transform_list.append(transforms.RandomHorizontalFlip())
+        transform_list.append(RandomHorizontalFlip())
 
-    transform_list += [transforms.ToTensor(),
-                       transforms.Normalize((0.5, 0.5, 0.5, 0.5),
-                                            (0.5, 0.5, 0.5, 0.5))]
-    return transforms.Compose(transform_list)
+    transform_list += [ToTensor(),
+                       HWC2CHW(),
+                       Normalize(0.5, 0.5)]
+    return Compose(transform_list)
 
 
 # just modify the width and height to be multiple of 4
@@ -69,7 +71,7 @@ def __adjust(img):
     if ow != w or oh != h:
         __print_size_warning(ow, oh, w, h)
 
-    return img.resize((w, h), Image.BICUBIC)
+    return imresize(img, (w, h))
 
 
 def __scale_width(img, target_width):
@@ -90,7 +92,7 @@ def __scale_width(img, target_width):
     if target_height != h:
         __print_size_warning(target_width, target_height, w, h)
 
-    return img.resize((w, h), Image.BICUBIC)
+    return resize(img, (w, h))
 
 
 def __print_size_warning(ow, oh, w, h):

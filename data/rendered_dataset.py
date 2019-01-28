@@ -6,6 +6,8 @@ import torch
 import numpy as np
 import random
 
+from util.image_util import imread
+
 
 class RenderedDataset(BaseDataset):
     @staticmethod
@@ -28,7 +30,7 @@ class RenderedDataset(BaseDataset):
         A = torch.tensor(np.random.uniform(-0.5, 0.5, inp_dims), dtype=torch.float32)
 
         B_path = self.B_paths[index % self.B_size]
-        B_img = Image.open(B_path).convert('RGBA')
+        B_img = imread(B_path)
         B = self.transform(B_img)
 
         if self.opt.input_nc == 1:  # RGB to gray

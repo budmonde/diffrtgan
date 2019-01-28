@@ -8,6 +8,8 @@ import torch.nn as nn
 
 import pyredner
 
+from .transform_util import *
+
 def get_children_path_list(path):
     return ['{}/{}'.format(path, f) for f in os.listdir(path)]
 
@@ -191,57 +193,6 @@ class PlaneRenderer(object):
         seed = random.randint(0, 255)
         return pyredner.RenderFunction.apply(seed, *args)
 
-class RandomCrop(object):
-    def __init__(self, size):
-        super(RandomCrop, self).__init__()
-        self.size = size
-
-    def __call__(self, input):
-        y = np.random.choice(input.shape[0] - self.size)
-        x = np.random.choice(input.shape[1] - self.size)
-        return input[y : y + self.size, x : x + self.size, : ]
-
-class CornerCrop(object):
-    def __init__(self, size):
-        super(CornerCrop, self).__init__()
-        self.size = size
-
-    def __call__(self, input):
-        return input[:self.size,:self.size,:]
-
-class ToTensor(object):
-    def __init__(self):
-        super(ToTensor, self).__init__()
-        pass
-
-    def __call__(self, input):
-        return torch.FloatTensor(np.array(input))
-
-class HWC2CHW(object):
-    def __init__(self):
-        super(HWC2CHW, self).__init__()
-        pass
-
-    def __call__(self, input):
-        return input.transpose(1, 2).transpose(0, 1).contiguous()
-
-class CHW2HWC(object):
-    def __init__(self):
-        super(CHW2HWC, self).__init__()
-        pass
-
-    def __call__(self, input):
-        return input.transpose(0, 1).transpose(1, 2).contiguous()
-
-class Normalize(object):
-    def __init__(self, mean, std):
-        super(Normalize, self).__init__()
-        self.mean = mean
-        self.std = std
-
-    def __call__(self, input):
-        return (input - self.mean) / self.std
-
 class MeshRenderLayer(nn.Module):
     def __init__(self, mesh_path, out_sz, num_samples, device):
         super(MeshRenderLayer, self).__init__()
@@ -263,18 +214,18 @@ class PlaneRenderLayer(nn.Module):
 class HWC2CHWLayer(nn.Module):
     def __init__(self):
         super(HWC2CHWLayer, self).__init__()
-        pass
+        self.transform = HWC2CHW()
 
     def forward(self, input):
-        return input.transpose(1, 2).transpose(0, 1).contiguous()
+        return self.transform(input)
 
 class CHW2HWCLayer(nn.Module):
     def __init__(self):
         super(CHW2HWCLayer, self).__init__()
-        pass
+        self.transform = CHW2HWC()
 
     def forward(self, input):
-        return input.transpose(0, 1).transpose(1, 2).contiguous()
+        return self.transform(input)
 
 class CompositLayer(nn.Module):
     def __init__(self, bkgd, size, device):
@@ -305,27 +256,26 @@ class CompositLayer(nn.Module):
 class NormalizeLayer(nn.Module):
     def __init__(self, mean, std):
         super(NormalizeLayer, self).__init__()
-        self.mean = mean
-        self.std = std
+        self.transform = Normalize(mean, std)
 
     def forward(self, input):
-        return (input - self.mean) / self.std
+        return self.transform(input)
 
 class StripBatchDimLayer(nn.Module):
     def __init__(self):
         super(StripBatchDimLayer, self).__init__()
-        pass
+        self.transform = StripBatchDim()
 
     def forward(self, input):
-        return input[0]
+        return self.transform(input)
 
 class AddBatchDimLayer(nn.Module):
     def __init__(self):
         super(AddBatchDimLayer, self).__init__()
-        pass
+        self.transform = AddBatchDim()
 
     def forward(self, input):
-        return input.unsqueeze(0)
+        return self.transform(input)
 
 class NormalizedCompositLayer(nn.Module):
     def __init__(self, bkgd, out_sz, device):
