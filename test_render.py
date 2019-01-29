@@ -3,7 +3,7 @@ import torch
 from util.render_util import MeshRenderLayer, NormalizedCompositLayer
 from util.image_util import imread, imwrite
 
-meshes_path = "datasets/meshes/new_hemi"
+meshes_path = "datasets/meshes/one"
 fineSize = 256
 num_samples = 4
 device = torch.device('cuda:0')
