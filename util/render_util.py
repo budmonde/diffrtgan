@@ -16,30 +16,62 @@ def get_children_path_list(path):
 class MeshRenderer(object):
     def __init__(self, meshes_path, out_sz, num_samples, device):
         super(MeshRenderer, self).__init__()
+        self.fov = 45.0
+        self.clip_near = 0.01
+        self.resolution = (out_sz, out_sz)
+        self.num_samples = num_samples
         self.device = device
 
-        self.out_sz = out_sz
-        self.camera = pyredner.Camera(
-            position     = torch.tensor([0.0, 4.0, -4.0]),
-            look_at      = torch.tensor([0.0, 0.0, 0.0]),
-            up           = torch.tensor([0.0, 1.0, 0.0]),
-            fov          = torch.tensor([45.0]),
-            clip_near    = 0.01,
-            resolution   = (self.out_sz, self.out_sz))
+        def pos_rand():
+            #d = 3.0 + random.uniform(1.0, 1.0) * 3.0
+            #phi = random.uniform(0.25, 0.25) * math.pi * 2
+            #theta = math.acos(1 - random.uniform(1.0, 1.0))
+            #x, y, z = math.cos(phi)*math.sin(theta)*d,\
+            #          math.cos(theta)*d,\
+            #          math.sin(phi)*math.sin(theta)*d
+            #return (x, y, z)
+            return (0.0, 1.5, random.choice([-9.0, 9.0]))
+        def look_rand():
+            #x, y, z = random.uniform(-1.0, 1.0),\
+            #          random.uniform(-1.0, 1.0,\
+            #          random.uniform(-1.0, 1.0)
+            #return (x, y, z)
+            return (0.0, 1.5, 0.0)
+        def up_rand():
+            #x, y, z = random.uniform(-0.2, 0.2),\
+            #          1.0,\
+            #          random.uniform(-0.2, 0.2)
+            #return (x, y, z)
+            return (0.0, 1.0, 0.0)
+        def rad_rand():
+            return (2.0, 2.0, 2.0)
+        def seed_rand():
+            return random.randint(0, 255)
+
+        self.sampler = {
+            'position': pos_rand,
+            'look_at':  look_rand,
+            'up':       up_rand,
+            'radiance': rad_rand,
+            'seed':     seed_rand
+        }
 
         self.materials = [
-            pyredner.Material(diffuse_reflectance = torch.tensor(
-                [1.0, 1.0, 1.0], device=self.device)),
+            None,
             pyredner.Material(diffuse_reflectance = torch.tensor(
                 [0.0, 0.0, 0.0], device=self.device)),
-            ]
+        ]
 
-        self.meshes = get_children_path_list(meshes_path)
+        # TODO: Revise this mesh loader once performance issue is solved
+        #self.meshes = get_children_path_list(meshes_path)
+        self.meshes = list(map(
+            lambda mesh: pyredner.Shape(*pyredner.load_obj(mesh), 0),
+            get_children_path_list(meshes_path)
+        ))
 
-        # TODO: is none initialization okay?
+        # TODO: GPU device choice is super sketchy
         self.shapes = [
-            # TODO: GPU device choice is super sketchy
-            None,
+            self.meshes[0],
             pyredner.Shape(
                 torch.tensor([
                     # on top
@@ -64,148 +96,39 @@ class MeshRenderer(object):
                 None,
                 1)]
 
-        self.lights = [pyredner.Light(1, torch.tensor([2.0, 2.0, 2.0]))]
-
-        self.num_samples = num_samples
-
     def __call__(self, sample):
         # Set Material
-        # assumer sample is of type Tensor
-        new_material = pyredner.Material(
+        # TODO: assert sample is of type Tensor on the correct device
+        self.materials[0] = pyredner.Material(
                 diffuse_reflectance = sample,
                 specular_reflectance = torch.tensor(
                     [0.7, 0.7, 0.7], device=self.device),
                 )
-        self.materials[0] = new_material
         # Sample mesh choice
-        #TODO: loads new mesh every single call :/
-        mesh_path = random.choice(self.meshes)
-        self.shapes[0] = pyredner.Shape(*pyredner.load_obj(mesh_path), 0)
-        # Sample Camera Position
-        d = 3.0 + random.uniform(0.0, 1.0) * 3.0
-        phi = random.uniform(0.0, 1.0) * math.pi * 2
-        theta = math.acos(1 - random.uniform(0.0, 1.0))
-        px, py, pz = math.cos(phi)*math.sin(theta),\
-                     math.cos(theta),\
-                     math.sin(phi)*math.sin(theta)
-        # Sample Camera Look-at
-        lx, ly, lz = random.uniform(-1.0, 1.0),\
-                     random.uniform(-1.0, 1.0),\
-                     random.uniform(-1.0, 1.0)
-        # Sample Camera Up-vector
-        ux, uy, uz = random.uniform(-0.2, 0.2),\
-                     1.0,\
-                     random.uniform(-0.2, 0.2)
+        # TODO: performance boost required for loading many meshes
+        self.shapes[0] = random.choice(self.meshes)
 
-        self.camera = pyredner.Camera(
-            position     = torch.tensor([px, py, pz]) * d,
-            look_at      = torch.tensor([lx, ly, lz]),
-            up           = torch.tensor([ux, uy, uz]),
-            fov          = torch.tensor([45.0]),
-            clip_near    = 0.01,
-            resolution   = (self.out_sz, self.out_sz))
+        # Sample Camera and Light Params
+        camera = pyredner.Camera(
+            position     = torch.tensor(self.sampler['position']()),
+            look_at      = torch.tensor(self.sampler['look_at']()),
+            up           = torch.tensor(self.sampler['up']()),
+            fov          = torch.tensor([self.fov]),
+            clip_near    = self.clip_near,
+            resolution   = self.resolution)
+        lights = [pyredner.Light(1, torch.tensor(self.sampler['radiance']()))]
 
-        # Define Scene
+        # Serialize Scene
         scene = pyredner.Scene(
-            self.camera, self.shapes, self.materials, self.lights)
+            camera, self.shapes, self.materials, lights)
         args = pyredner.RenderFunction.serialize_scene(
-            scene = scene,
-            num_samples = self.num_samples,
-            max_bounces = 1)
-        seed = random.randint(0, 255)
-        return pyredner.RenderFunction.apply(seed, *args)
-
-class PlaneRenderer(object):
-    def __init__(self, out_sz, num_samples, device):
-        super(PlaneRenderer, self).__init__()
-        self.device = device
-
-        self.camera = pyredner.Camera(
-            position     = torch.tensor([0.0, 0.0, -5.0]),
-            look_at      = torch.tensor([0.0, 0.0, 0.0]),
-            up           = torch.tensor([0.0, 1.0, 0.0]),
-            fov          = torch.tensor([45.0]),
-            clip_near    = 0.01,
-            resolution   = (out_sz, out_sz))
-
-        self.materials = [
-            pyredner.Material(diffuse_reflectance = torch.tensor(
-                [1.0, 1.0, 1.0], device=self.device)),
-            pyredner.Material(diffuse_reflectance = torch.tensor(
-                [0.0, 0.0, 0.0], device=self.device)),
-            ]
-
-        self.shapes = [
-            pyredner.Shape(
-                torch.tensor([
-                    [-2.1, -2.1, 8.0],
-                    [-2.1, 2.1, 0.0],
-                    [2.1, -2.1, 8.0],
-                    [2.1, 2.1, 0.0]],
-                    device=self.device),
-                torch.tensor([
-                    [0, 1, 2],
-                    [1, 3, 2]],
-                    dtype = torch.int32,
-                    device=self.device),
-                torch.tensor([
-                    [1.0, 1.0],
-                    [1.0, 0.0],
-                    [0.0, 1.0],
-                    [0.0, 0.0]],
-                    device=self.device),
-                None,
-                0),
-            pyredner.Shape(
-                torch.tensor([
-                    [-1.0, -1.0, -7.0],
-                    [1.0, -1.0, -7.0],
-                    [-1.0, 1.0, -7.0],
-                    [1.0, 1.0, -7.0]],
-                    device=self.device),
-                torch.tensor([
-                    [0, 1, 2],
-                    [1, 3, 2]],
-                    dtype = torch.int32,
-                    device=self.device),
-                None,
-                None,
-                1)]
-
-        self.lights = [pyredner.Light(1, torch.tensor([40.0, 40.0, 40.0]))]
-
-        self.num_samples = num_samples
-
-    def __call__(self, sample):
-        # assumer sample is of type Tensor
-        new_material = pyredner.Material(
-                diffuse_reflectance = sample,
-                specular_reflectance = torch.tensor(
-                    [0.8, 0.8, 1.0], device=self.device)
-                )
-        self.materials[0] = new_material
-        scene = pyredner.Scene(
-            self.camera, self.shapes, self.materials, self.lights)
-        args = pyredner.RenderFunction.serialize_scene(
-            scene = scene,
-            num_samples = self.num_samples,
-            max_bounces = 1)
-        seed = random.randint(0, 255)
-        return pyredner.RenderFunction.apply(seed, *args)
+            scene = scene, num_samples = self.num_samples, max_bounces = 1)
+        return pyredner.RenderFunction.apply(self.sampler['seed'](), *args)
 
 class MeshRenderLayer(nn.Module):
     def __init__(self, mesh_path, out_sz, num_samples, device):
         super(MeshRenderLayer, self).__init__()
         self.renderer = MeshRenderer(mesh_path, out_sz, num_samples, device)
-
-    def forward(self, input):
-        out = self.renderer(input)
-        return out
-
-class PlaneRenderLayer(nn.Module):
-    def __init__(self, out_sz, num_samples, device):
-        super(PlaneRenderLayer, self).__init__()
-        self.renderer = PlaneRenderer(out_sz, num_samples, device)
 
     def forward(self, input):
         out = self.renderer(input)
@@ -245,9 +168,10 @@ class CompositLayer(nn.Module):
     def forward(self, input):
         # input is in format HWC
         if self.rng:
-            bkgd_color = (random.uniform(0.0, 1.0),
-                          random.uniform(0.0, 1.0),
-                          random.uniform(0.0, 1.0))
+            #bkgd_color = (random.uniform(0.0, 1.0),
+            #              random.uniform(0.0, 1.0),
+            #              random.uniform(0.0, 1.0))
+            bkgd_color = (0.8, 0.8, 0.8)
             self.bkgd = torch.tensor(bkgd_color, device=self.device)\
                              .expand(self.size, self.size, len(bkgd_color))
         alpha = input[:,:,-1:]
