@@ -1,11 +1,11 @@
+import random
 import os.path
+
+import numpy as np
+import torch
+
 from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
-from PIL import Image
-import torch
-import numpy as np
-import random
-
 from util.image_util import imread
 
 

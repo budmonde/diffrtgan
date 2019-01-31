@@ -1,28 +1,26 @@
 import os
-import random
-import numpy as np
 import math
+import random
+
+import numpy as np
 
 import torch
-import torch.nn as nn
 
 import pyredner
 
-from .transform_util import *
+from .transform_util import CornerCrop
 
-def get_children_path_list(path):
-    return ['{}/{}'.format(path, f) for f in os.listdir(path)]
 
-class MeshRenderer(object):
+class MeshRender(object):
     def __init__(self, meshes_path, out_sz, num_samples, device):
-        super(MeshRenderer, self).__init__()
+        super(MeshRender, self).__init__()
         self.fov = 45.0
         self.clip_near = 0.01
         self.resolution = (out_sz, out_sz)
         self.num_samples = num_samples
         self.device = device
 
-        def pos_rand():
+        def pos_sample():
             #d = 3.0 + random.uniform(1.0, 1.0) * 3.0
             #phi = random.uniform(0.25, 0.25) * math.pi * 2
             #theta = math.acos(1 - random.uniform(1.0, 1.0))
@@ -31,29 +29,29 @@ class MeshRenderer(object):
             #          math.sin(phi)*math.sin(theta)*d
             #return (x, y, z)
             return (0.0, 1.5, random.choice([-9.0, 9.0]))
-        def look_rand():
+        def look_sample():
             #x, y, z = random.uniform(-1.0, 1.0),\
             #          random.uniform(-1.0, 1.0,\
             #          random.uniform(-1.0, 1.0)
             #return (x, y, z)
             return (0.0, 1.5, 0.0)
-        def up_rand():
+        def up_sample():
             #x, y, z = random.uniform(-0.2, 0.2),\
             #          1.0,\
             #          random.uniform(-0.2, 0.2)
             #return (x, y, z)
             return (0.0, 1.0, 0.0)
-        def rad_rand():
+        def rad_sample():
             return (2.0, 2.0, 2.0)
-        def seed_rand():
+        def seed_sample():
             return random.randint(0, 255)
 
         self.sampler = {
-            'position': pos_rand,
-            'look_at':  look_rand,
-            'up':       up_rand,
-            'radiance': rad_rand,
-            'seed':     seed_rand
+            'position': pos_sample,
+            'look_at':  look_sample,
+            'up':       up_sample,
+            'radiance': rad_sample,
+            'seed':     seed_sample
         }
 
         self.materials = [
@@ -64,6 +62,9 @@ class MeshRenderer(object):
 
         # TODO: Revise this mesh loader once performance issue is solved
         #self.meshes = get_children_path_list(meshes_path)
+        def get_children_path_list(path):
+            return ['{}/{}'.format(path, f) for f in os.listdir(path)]
+
         self.meshes = list(map(
             lambda mesh: pyredner.Shape(*pyredner.load_obj(mesh), 0),
             get_children_path_list(meshes_path)
@@ -125,35 +126,9 @@ class MeshRenderer(object):
             scene = scene, num_samples = self.num_samples, max_bounces = 1)
         return pyredner.RenderFunction.apply(self.sampler['seed'](), *args)
 
-class MeshRenderLayer(nn.Module):
-    def __init__(self, mesh_path, out_sz, num_samples, device):
-        super(MeshRenderLayer, self).__init__()
-        self.renderer = MeshRenderer(mesh_path, out_sz, num_samples, device)
-
-    def forward(self, input):
-        out = self.renderer(input)
-        return out
-
-class HWC2CHWLayer(nn.Module):
-    def __init__(self):
-        super(HWC2CHWLayer, self).__init__()
-        self.transform = HWC2CHW()
-
-    def forward(self, input):
-        return self.transform(input)
-
-class CHW2HWCLayer(nn.Module):
-    def __init__(self):
-        super(CHW2HWCLayer, self).__init__()
-        self.transform = CHW2HWC()
-
-    def forward(self, input):
-        return self.transform(input)
-
-class CompositLayer(nn.Module):
+class Composit(object):
     def __init__(self, bkgd, size, device):
-        super(CompositLayer, self).__init__()
-        #self.crop = RandomCrop(size)
+        super(Composit, self).__init__()
         self.size = size
         self.device = device
         self.crop = CornerCrop(size)
@@ -165,7 +140,7 @@ class CompositLayer(nn.Module):
         else:
             self.bkgd = torch.tensor(self.crop(bkgd), device=device)
 
-    def forward(self, input):
+    def __call__(self, input):
         # input is in format HWC
         if self.rng:
             #bkgd_color = (random.uniform(0.0, 1.0),
@@ -176,62 +151,3 @@ class CompositLayer(nn.Module):
                              .expand(self.size, self.size, len(bkgd_color))
         alpha = input[:,:,-1:]
         return alpha * input[:,:,:-1] + (1 - alpha) * self.bkgd
-
-class NormalizeLayer(nn.Module):
-    def __init__(self, mean, std):
-        super(NormalizeLayer, self).__init__()
-        self.transform = Normalize(mean, std)
-
-    def forward(self, input):
-        return self.transform(input)
-
-class StripBatchDimLayer(nn.Module):
-    def __init__(self):
-        super(StripBatchDimLayer, self).__init__()
-        self.transform = StripBatchDim()
-
-    def forward(self, input):
-        return self.transform(input)
-
-class AddBatchDimLayer(nn.Module):
-    def __init__(self):
-        super(AddBatchDimLayer, self).__init__()
-        self.transform = AddBatchDim()
-
-    def forward(self, input):
-        return self.transform(input)
-
-class NormalizedCompositLayer(nn.Module):
-    def __init__(self, bkgd, out_sz, device):
-        super(NormalizedCompositLayer, self).__init__()
-        self.model = nn.Sequential(
-                StripBatchDimLayer(),
-                NormalizeLayer(-1.0, 2.0),
-                CHW2HWCLayer(),
-                CompositLayer(bkgd, out_sz, device),
-                HWC2CHWLayer(),
-                NormalizeLayer(0.5, 0.5),
-                AddBatchDimLayer(),
-        )
-
-    def forward(self, input):
-        out = self.model.forward(input)
-        return out
-
-class NormalizedRenderLayer(nn.Module):
-    def __init__(self, mesh_path, bkgd, out_sz, num_samples, device):
-        super(NormalizedRenderLayer, self).__init__()
-        self.model = nn.Sequential(
-                StripBatchDimLayer(),
-                NormalizeLayer(-1.0, 2.0),
-                CHW2HWCLayer(),
-                CompositLayer(bkgd, out_sz, device),
-                MeshRenderLayer(mesh_path, out_sz, num_samples, device),
-                HWC2CHWLayer(),
-                NormalizeLayer(0.5, 0.5),
-                AddBatchDimLayer(),
-        )
-
-    def forward(self, input):
-        out = self.model.forward(input)
-        return out

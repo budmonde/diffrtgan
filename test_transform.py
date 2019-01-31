@@ -1,8 +1,8 @@
 import torch
 
 from util.image_util import imread, imwrite
-from util.render_util import CompositLayer, CornerCrop, MeshRenderLayer
-from util.transform_util import Resize
+from util.torch_util import CompositLayer, MeshRenderLayer
+from util.transform_util import CornerCrop, Resize
 
 
 fineSize = 500

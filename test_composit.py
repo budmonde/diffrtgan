@@ -1,8 +1,9 @@
 import torch
 
 from util.image_util import imread, imwrite
-from util.render_util import CompositLayer, MeshRenderLayer
+from util.torch_util import CompositLayer, MeshRenderLayer
 from util.transform_util import CornerCrop
+
 
 fineSize = 500
 device = torch.device('cuda:0')
@@ -22,7 +23,7 @@ composit_layer = CompositLayer(bkgd, fineSize, device)
 composit = composit_layer(inp)
 imwrite(composit, "debug/test_composit_out.png")
 
-meshes_path = "datasets/meshes/new_hemi"
+meshes_path = "datasets/meshes/one"
 fineSize = 256
 num_samples = 4
 

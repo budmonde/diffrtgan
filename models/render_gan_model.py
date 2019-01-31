@@ -1,12 +1,13 @@
-import torch
-import numpy as np
 import itertools
+
+import numpy as np
+import torch
+
+from . import networks
+from .base_model import BaseModel
 from util.image_pool import ImagePool
 from util.image_util import imread
-from util.render_util import NormalizedRenderLayer, NormalizedCompositLayer
-from .base_model import BaseModel
-from . import networks
-
+from util.torch_util import NormalizedRenderLayer, NormalizedCompositLayer
 
 class RenderGANModel(BaseModel):
     def name(self):

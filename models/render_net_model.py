@@ -1,13 +1,13 @@
 import itertools
-import numpy as np
 
+import numpy as np
 import torch
 
 from . import networks
 from .base_model import BaseModel
 from util.image_pool import ImagePool
 from util.image_util import imread
-from util.render_util import NormalizedRenderLayer, NormalizedCompositLayer
+from util.torch_util import NormalizedRenderLayer, NormalizedCompositLayer
 
 
 class RenderNetModel(BaseModel):

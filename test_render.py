@@ -1,7 +1,8 @@
 import torch
 
-from util.render_util import MeshRenderLayer, NormalizedCompositLayer
 from util.image_util import imread, imwrite
+from util.torch_util import MeshRenderLayer
+
 
 meshes_path = "datasets/meshes/one"
 fineSize = 256

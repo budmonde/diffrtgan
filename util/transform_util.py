@@ -3,8 +3,8 @@ import random
 import numpy as np
 from PIL import Image
 from skimage.transform import resize
-import torch
 
+import torch
 
 
 class Debug(object):
