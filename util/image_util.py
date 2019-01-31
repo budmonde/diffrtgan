@@ -48,17 +48,17 @@ def imread(filename):
         bluestr = file.channel('B', pt)
         blue = np.fromstring(bluestr, dtype = np.float32)
         blue.shape = (size[1], size[0])
-        return np.stack([red, green, blue], axis=-1).astype(np.float64)
+        return np.stack([red, green, blue], axis=-1).astype(np.float32)
     else:
         im = skimage.io.imread(filename)
         if im.ndim == 2:
             im = np.stack([im, im, im], axis=-1)
-            return np.power(skimage.img_as_float(im).astype(np.float64), 2.2)
+            return np.power(skimage.img_as_float(im).astype(np.float32), 2.2)
         elif im.shape[2] == 4:
-            alpha = (im[:, :, 3] / 255.).astype(np.float64)
+            alpha = (im[:, :, 3] / 255.).astype(np.float32)
             im = im[:, :, :3]
-            im = np.power(skimage.img_as_float(im).astype(np.float64), 2.2)
+            im = np.power(skimage.img_as_float(im).astype(np.float32), 2.2)
             return np.dstack([im, alpha])
         else:
-            return np.power(skimage.img_as_float(im).astype(np.float64), 2.2)
+            return np.power(skimage.img_as_float(im).astype(np.float32), 2.2)
 

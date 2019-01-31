@@ -8,6 +8,7 @@ import torch
 
 import pyredner
 
+from .image_util import imread
 from .transform_util import CornerCrop
 
 
@@ -50,66 +51,42 @@ class MeshRender(object):
             'position': pos_sample,
             'look_at':  look_sample,
             'up':       up_sample,
-            'radiance': rad_sample,
             'seed':     seed_sample
         }
-
-        self.materials = [
-            None,
-            pyredner.Material(diffuse_reflectance = torch.tensor(
-                [0.0, 0.0, 0.0], device=self.device)),
-        ]
 
         # TODO: Revise this mesh loader once performance issue is solved
         #self.meshes = get_children_path_list(meshes_path)
         def get_children_path_list(path):
             return ['{}/{}'.format(path, f) for f in os.listdir(path)]
 
+        # TODO: Allow for legit meshes to be loaded
+        def get_mesh_geometry(mesh_path):
+            mtl, geo, light = pyredner.load_obj(mesh_path)
+            #TODO: this should be extended further later
+            main = geo[0][1]
+            return main.vertices, main.indices, main.uvs, main.normals
+
         self.meshes = list(map(
-            lambda mesh: pyredner.Shape(*pyredner.load_obj(mesh), 0),
+            lambda mesh_path: pyredner.Shape(*get_mesh_geometry(mesh_path), 0),
             get_children_path_list(meshes_path)
         ))
 
-        # TODO: GPU device choice is super sketchy
-        self.shapes = [
-            self.meshes[0],
-            pyredner.Shape(
-                torch.tensor([
-                    # on top
-                    [-4.0,   7.0, -4.0],
-                    [ 4.0,   7.0, -4.0],
-                    [ 4.0,   7.0,  4.0],
-                    [-4.0,   7.0,  4.0],
-                    # on bottom
-                    [-4.0,  -7.0, -4.0],
-                    [ 4.0,  -7.0, -4.0],
-                    [ 4.0,  -7.0,  4.0],
-                    [-4.0,  -7.0,  4.0]],
-                    device=self.device),
-                torch.tensor([
-                    [0, 1, 2],
-                    [0, 2, 3],
-                    [4, 5, 6],
-                    [4, 6, 7]],
-                    dtype = torch.int32,
-                    device=self.device),
-                None,
-                None,
-                1)]
+        # NOTE: Tzu-mao has a bug in his code in texture.py:41 for large env
+        img = torch.tensor(imread('datasets/envmaps/sunsky.exr'), dtype=torch.float32, device=self.device)
+        self.envmap = pyredner.EnvironmentMap(img)
 
     def __call__(self, sample):
-        # Set Material
-        # TODO: assert sample is of type Tensor on the correct device
-        self.materials[0] = pyredner.Material(
+        # Sample Material
+        assert(isinstance(sample, torch.Tensor))
+        material = pyredner.Material(
                 diffuse_reflectance = sample,
                 specular_reflectance = torch.tensor(
                     [0.7, 0.7, 0.7], device=self.device),
                 )
         # Sample mesh choice
-        # TODO: performance boost required for loading many meshes
-        self.shapes[0] = random.choice(self.meshes)
+        shape = random.choice(self.meshes)
 
-        # Sample Camera and Light Params
+        # Sample Camera Params
         camera = pyredner.Camera(
             position     = torch.tensor(self.sampler['position']()),
             look_at      = torch.tensor(self.sampler['look_at']()),
@@ -117,11 +94,10 @@ class MeshRender(object):
             fov          = torch.tensor([self.fov]),
             clip_near    = self.clip_near,
             resolution   = self.resolution)
-        lights = [pyredner.Light(1, torch.tensor(self.sampler['radiance']()))]
 
         # Serialize Scene
         scene = pyredner.Scene(
-            camera, self.shapes, self.materials, lights)
+            camera, [shape], [material], [], self.envmap)
         args = pyredner.RenderFunction.serialize_scene(
             scene = scene, num_samples = self.num_samples, max_bounces = 1)
         return pyredner.RenderFunction.apply(self.sampler['seed'](), *args)
