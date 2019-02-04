@@ -12,14 +12,15 @@ from .image_util import imread
 from .transform_util import CornerCrop
 
 
-class MeshRender(object):
+class Render(object):
     def __init__(self, meshes_path, out_sz, num_samples, device):
-        super(MeshRender, self).__init__()
-        self.fov = 45.0
-        self.clip_near = 0.01
+        super(Render, self).__init__()
         self.resolution = (out_sz, out_sz)
         self.num_samples = num_samples
         self.device = device
+
+        pyredner.set_use_gpu(self.device != torch.device('cpu'))
+        pyredner.set_device(self.device)
 
         def pos_sample():
             #d = 3.0 + random.uniform(1.0, 1.0) * 3.0
@@ -55,19 +56,23 @@ class MeshRender(object):
         }
 
         # TODO: Revise this mesh loader once performance issue is solved
-        #self.meshes = get_children_path_list(meshes_path)
         def get_children_path_list(path):
             return ['{}/{}'.format(path, f) for f in os.listdir(path)]
 
-        # TODO: Allow for legit meshes to be loaded
         def get_mesh_geometry(mesh_path):
             mtl, geo, light = pyredner.load_obj(mesh_path)
-            #TODO: this should be extended further later
             main = geo[0][1]
-            return main.vertices, main.indices, main.uvs, main.normals
+            return {
+                'vertices': main.vertices,
+                'indices' : main.indices,
+                'uvs'     : main.uvs,
+                'normals' : main.normals
+            }
 
         self.meshes = list(map(
-            lambda mesh_path: pyredner.Shape(*get_mesh_geometry(mesh_path), 0),
+            lambda mesh_path: pyredner.Shape(
+                **get_mesh_geometry(mesh_path),
+                material_id = 0),
             get_children_path_list(meshes_path)
         ))
 
@@ -78,11 +83,15 @@ class MeshRender(object):
     def __call__(self, sample):
         # Sample Material
         assert(isinstance(sample, torch.Tensor))
+        assert(sample.device == self.device)
         material = pyredner.Material(
                 diffuse_reflectance = sample,
                 specular_reflectance = torch.tensor(
                     [0.7, 0.7, 0.7], device=self.device),
-                )
+                roughness = torch.tensor(
+                    [0.05], device=self.device)
+        )
+
         # Sample mesh choice
         shape = random.choice(self.meshes)
 
@@ -91,15 +100,19 @@ class MeshRender(object):
             position     = torch.tensor(self.sampler['position']()),
             look_at      = torch.tensor(self.sampler['look_at']()),
             up           = torch.tensor(self.sampler['up']()),
-            fov          = torch.tensor([self.fov]),
-            clip_near    = self.clip_near,
-            resolution   = self.resolution)
+            fov          = torch.tensor([45.0]),
+            clip_near    = 1e-2,
+            resolution   = self.resolution,
+            fisheye      = False)
 
         # Serialize Scene
-        scene = pyredner.Scene(
+        # IMPORTANT: saving scene to the object.
+        # prevents python garbage collection from
+        # removing variables redner allocates
+        self.scene = pyredner.Scene(
             camera, [shape], [material], [], self.envmap)
         args = pyredner.RenderFunction.serialize_scene(
-            scene = scene, num_samples = self.num_samples, max_bounces = 1)
+            scene = self.scene, num_samples = self.num_samples, max_bounces = 1)
         return pyredner.RenderFunction.apply(self.sampler['seed'](), *args)
 
 class Composit(object):

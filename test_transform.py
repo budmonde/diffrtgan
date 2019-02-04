@@ -1,7 +1,7 @@
 import torch
 
 from util.image_util import imread, imwrite
-from util.torch_util import CompositLayer, MeshRenderLayer
+from util.torch_util import CompositLayer, RenderLayer
 from util.transform_util import CornerCrop, Resize
 
 

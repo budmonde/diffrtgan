@@ -4,10 +4,10 @@ from .render_util import *
 from .transform_util import *
 
 
-class MeshRenderLayer(nn.Module):
+class RenderLayer(nn.Module):
     def __init__(self, *args, **kwargs):
-        super(MeshRenderLayer, self).__init__()
-        self.renderer = MeshRender(*args, **kwargs)
+        super(RenderLayer, self).__init__()
+        self.renderer = Render(*args, **kwargs)
 
     def forward(self, input):
         out = self.renderer(input)
@@ -87,7 +87,7 @@ class NormalizedRenderLayer(nn.Module):
                 NormalizeLayer(-1.0, 2.0),
                 CHW2HWCLayer(),
                 CompositLayer(bkgd, out_sz, device),
-                MeshRenderLayer(mesh_path, out_sz, num_samples, device),
+                RenderLayer(mesh_path, out_sz, num_samples, device),
                 HWC2CHWLayer(),
                 NormalizeLayer(0.5, 0.5),
                 AddBatchDimLayer(),

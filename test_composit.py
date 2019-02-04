@@ -1,7 +1,7 @@
 import torch
 
 from util.image_util import imread, imwrite
-from util.torch_util import CompositLayer, MeshRenderLayer
+from util.torch_util import CompositLayer, RenderLayer
 from util.transform_util import CornerCrop
 
 
@@ -27,6 +27,6 @@ meshes_path = "datasets/meshes/one"
 fineSize = 256
 num_samples = 4
 
-render_layer = MeshRenderLayer(meshes_path, fineSize, num_samples, device)
+render_layer = RenderLayer(meshes_path, fineSize, num_samples, device)
 out = render_layer(composit)
 imwrite(out, "debug/test_render_composit_out.png")

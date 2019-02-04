@@ -20,6 +20,8 @@ class RenderNetModel(BaseModel):
         parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one', help='Path of mesh pool to render')
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
         parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')
+
+        parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/transparency/transparency.png', help='Compositing background used for visualization of semi-transparent textures')
         return parser
 
     def initialize(self, opt):
@@ -42,10 +44,10 @@ class RenderNetModel(BaseModel):
         self.netG = networks.define_G(opt.input_nc, opt.texture_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        bkgd = None
-        vis_bkgd = torch.tensor(imread('./datasets/textures/transparency/transparency.png'), dtype=torch.float32)
+        rnd_bkgd = None
+        vis_bkgd = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
 
-        self.render_layer = NormalizedRenderLayer(opt.meshes_path, bkgd, opt.fineSize, opt.mc_subsampling, self.device)
+        self.render_layer = NormalizedRenderLayer(opt.meshes_path, rnd_bkgd, opt.fineSize, opt.mc_subsampling, self.device)
         self.composit_layer = NormalizedCompositLayer(vis_bkgd, opt.fineSize, self.device)
 
         if self.isTrain:
