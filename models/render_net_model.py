@@ -20,6 +20,7 @@ class RenderNetModel(BaseModel):
         parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one', help='Path of mesh pool to render')
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
         parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')
+        parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
 
         parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/transparency/transparency.png', help='Compositing background used for visualization of semi-transparent textures')
         return parser
@@ -47,7 +48,7 @@ class RenderNetModel(BaseModel):
         rnd_bkgd = None
         vis_bkgd = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
 
-        self.render_layer = NormalizedRenderLayer(opt.meshes_path, rnd_bkgd, opt.fineSize, opt.mc_subsampling, self.device)
+        self.render_layer = NormalizedRenderLayer(opt.meshes_path, rnd_bkgd, opt.fineSize, opt.mc_subsampling, opt.mc_max_bounces, self.device)
         self.composit_layer = NormalizedCompositLayer(vis_bkgd, opt.fineSize, self.device)
 
         if self.isTrain:

@@ -13,15 +13,19 @@ from .transform_util import CornerCrop
 
 
 class Render(object):
-    def __init__(self, meshes_path, out_sz, num_samples, device):
+    def __init__(self, meshes_path, out_sz, num_samples, max_bounces, device):
         super(Render, self).__init__()
-        self.resolution = (out_sz, out_sz)
-        self.num_samples = num_samples
+        # Redner GPU Configs
         self.device = device
-
         pyredner.set_use_gpu(self.device != torch.device('cpu'))
         pyredner.set_device(self.device)
 
+        # Render output Configs
+        self.resolution = (out_sz, out_sz)
+        self.num_samples = num_samples
+        self.max_bounces = max_bounces
+
+        # Camera Config Sampling
         def pos_sample():
             #d = 3.0 + random.uniform(1.0, 1.0) * 3.0
             #phi = random.uniform(0.25, 0.25) * math.pi * 2
@@ -55,6 +59,7 @@ class Render(object):
             'seed':     seed_sample
         }
 
+        # Load Car Mesh
         # TODO: Revise this mesh loader once performance issue is solved
         def get_children_path_list(path):
             return ['{}/{}'.format(path, f) for f in os.listdir(path)]
@@ -69,15 +74,27 @@ class Render(object):
                 'normals' : main.normals
             }
 
+        def define_Shape(kwargs, m_id):
+            return pyredner.Shape(**kwargs, material_id = m_id)
+
         self.meshes = list(map(
-            lambda mesh_path: pyredner.Shape(
-                **get_mesh_geometry(mesh_path),
-                material_id = 0),
+            lambda mesh_path: define_Shape(get_mesh_geometry(mesh_path), 0),
             get_children_path_list(meshes_path)
         ))
 
+        # Load floor mesh and material
+        self.floor_shape = define_Shape(
+            get_mesh_geometry('datasets/meshes/plane/plane.obj'), 1)
+
+        self.floor_mtl = pyredner.Material(
+            diffuse_reflectance = torch.tensor(
+                [0.5, 0.5, 0.5], device = self.device)
+        )
+
+        # Load Environment Map
         # NOTE: Tzu-mao has a bug in his code in texture.py:41 for large env
-        img = torch.tensor(imread('datasets/envmaps/sunsky.exr'), dtype=torch.float32, device=self.device)
+        img = torch.tensor(imread('datasets/envmaps/sunsky.exr'),\
+            dtype=torch.float32, device=self.device)
         self.envmap = pyredner.EnvironmentMap(img)
 
     def __call__(self, sample):
@@ -85,11 +102,11 @@ class Render(object):
         assert(isinstance(sample, torch.Tensor))
         assert(sample.device == self.device)
         material = pyredner.Material(
-                diffuse_reflectance = sample,
-                specular_reflectance = torch.tensor(
-                    [0.7, 0.7, 0.7], device=self.device),
-                roughness = torch.tensor(
-                    [0.05], device=self.device)
+            diffuse_reflectance = sample,
+            specular_reflectance = torch.tensor(
+                [0.7, 0.7, 0.7], device=self.device),
+            roughness = torch.tensor(
+                [0.05], device=self.device)
         )
 
         # Sample mesh choice
@@ -110,9 +127,14 @@ class Render(object):
         # prevents python garbage collection from
         # removing variables redner allocates
         self.scene = pyredner.Scene(
-            camera, [shape], [material], [], self.envmap)
+            camera,
+            [shape, self.floor_shape],
+            [material, self.floor_mtl],
+            [], self.envmap)
         args = pyredner.RenderFunction.serialize_scene(
-            scene = self.scene, num_samples = self.num_samples, max_bounces = 1)
+            scene = self.scene,
+            num_samples = self.num_samples,
+            max_bounces = self.max_bounces)
         return pyredner.RenderFunction.apply(self.sampler['seed'](), *args)
 
 class Composit(object):

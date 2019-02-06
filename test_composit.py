@@ -26,7 +26,8 @@ imwrite(composit, "debug/test_composit_out.png")
 meshes_path = "datasets/meshes/one"
 fineSize = 256
 num_samples = 4
+max_bounces = 2
 
-render_layer = RenderLayer(meshes_path, fineSize, num_samples, device)
+render_layer = RenderLayer(meshes_path, fineSize, num_samples, max_bounces, device)
 out = render_layer(composit)
 imwrite(out, "debug/test_render_composit_out.png")
