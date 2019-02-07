@@ -58,8 +58,7 @@ class Render(object):
             'seed':     seed_sample
         }
 
-        # Load Car Mesh
-        # TODO: Revise this mesh loader once performance issue is solved
+        # Load Car Meshes
         def get_children_path_list(path):
             return ['{}/{}'.format(path, f) for f in os.listdir(path)]
 
