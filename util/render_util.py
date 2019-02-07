@@ -6,6 +6,7 @@ import numpy as np
 
 import torch
 
+import redner
 import pyredner
 
 from .image_util import imread
@@ -34,21 +35,19 @@ class Render(object):
             #          math.cos(theta)*d,\
             #          math.sin(phi)*math.sin(theta)*d
             #return (x, y, z)
-            return (0.0, 1.5, random.choice([-9.0, 9.0]))
+            return (0.0, 0.75, random.choice([-8.0, 8.0]))
         def look_sample():
             #x, y, z = random.uniform(-1.0, 1.0),\
             #          random.uniform(-1.0, 1.0,\
             #          random.uniform(-1.0, 1.0)
             #return (x, y, z)
-            return (0.0, 1.5, 0.0)
+            return (0.0, 0.75, 0.0)
         def up_sample():
             #x, y, z = random.uniform(-0.2, 0.2),\
             #          1.0,\
             #          random.uniform(-0.2, 0.2)
             #return (x, y, z)
             return (0.0, 1.0, 0.0)
-        def rad_sample():
-            return (2.0, 2.0, 2.0)
         def seed_sample():
             return random.randint(0, 255)
 
@@ -82,14 +81,15 @@ class Render(object):
             get_children_path_list(meshes_path)
         ))
 
+        # NOTE: temporarily disabled until shape id feature is enabled
         # Load floor mesh and material
-        self.floor_shape = define_Shape(
-            get_mesh_geometry('datasets/meshes/plane/plane.obj'), 1)
+        #self.floor_shape = define_Shape(
+        #    get_mesh_geometry('datasets/meshes/plane/plane.obj'), 1)
 
-        self.floor_mtl = pyredner.Material(
-            diffuse_reflectance = torch.tensor(
-                [0.5, 0.5, 0.5], device = self.device)
-        )
+        #self.floor_mtl = pyredner.Material(
+        #    diffuse_reflectance = torch.tensor(
+        #        [0.5, 0.5, 0.5], device = self.device)
+        #)
 
         # Load Environment Map
         # NOTE: Tzu-mao has a bug in his code in texture.py:41 for large env
@@ -128,14 +128,19 @@ class Render(object):
         # removing variables redner allocates
         self.scene = pyredner.Scene(
             camera,
-            [shape, self.floor_shape],
-            [material, self.floor_mtl],
+            [shape],#self.floor_shape],
+            [material],#self.floor_mtl],
             [], self.envmap)
         args = pyredner.RenderFunction.serialize_scene(
             scene = self.scene,
             num_samples = self.num_samples,
-            max_bounces = self.max_bounces)
-        return pyredner.RenderFunction.apply(self.sampler['seed'](), *args)
+            max_bounces = self.max_bounces,
+            channels = [redner.channels.radiance, redner.channels.alpha])
+        out = pyredner.RenderFunction.apply(self.sampler['seed'](), *args)
+
+        black = torch.zeros((*self.resolution, 3), device = self.device)
+        out = out[:, :, :3] * out[:, :, 3:4] + black * (1 - out[:, :, 3:4])
+        return out
 
 class Composit(object):
     def __init__(self, bkgd, size, device):
