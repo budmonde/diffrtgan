@@ -1,4 +1,5 @@
 import itertools
+import json
 
 import numpy as np
 import torch
@@ -7,6 +8,7 @@ from . import networks
 from .base_model import BaseModel
 from util.image_pool import ImagePool
 from util.image_util import imread
+from util.render_util import RenderConfig
 from util.torch_util import NormalizedRenderLayer, NormalizedCompositLayer
 
 
@@ -16,11 +18,12 @@ class RenderNetModel(BaseModel):
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
-        parser.set_defaults(input_nc=4)
+        parser.set_defaults(input_nc=4, no_flip=True, loadSize=256)
         parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one', help='Path of mesh pool to render')
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
         parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')
         parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
+        parser.add_argument('--config_path', type=str, default='datasets/empty.json', help='Path to camera configs for target images')
 
         parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/transparency/transparency.png', help='Compositing background used for visualization of semi-transparent textures')
         return parser
@@ -48,7 +51,9 @@ class RenderNetModel(BaseModel):
         rnd_bkgd = None
         vis_bkgd = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
 
-        self.render_layer = NormalizedRenderLayer(opt.meshes_path, rnd_bkgd, opt.fineSize, opt.mc_subsampling, opt.mc_max_bounces, self.device)
+        self.render_config = RenderConfig(json.loads(open(opt.config_path).read()))
+        self.render_layer = NormalizedRenderLayer(
+                opt.meshes_path, rnd_bkgd, opt.fineSize, opt.mc_subsampling, opt.mc_max_bounces, self.device, config = self.render_config)
         self.composit_layer = NormalizedCompositLayer(vis_bkgd, opt.fineSize, self.device)
 
         if self.isTrain:
@@ -70,12 +75,15 @@ class RenderNetModel(BaseModel):
     def set_input(self, input):
         self.real_A_tex = input['A'].to(self.device)
         self.real_B = input['B'].to(self.device)
+        self.real_B_name = input['B_name']
 
         # Composit for visuals
         self.real_A_tex_show = self.composit_layer(self.real_A_tex)
 
     def forward(self):
         self.fake_B_tex = self.netG(self.real_A_tex)
+        # Set camera parameters and pass to renderer
+        self.fake_B_id = self.render_config.set_config(self.real_B_name[0])
         self.fake_B_render = self.render_layer(self.fake_B_tex)
 
         # Composit for visuals

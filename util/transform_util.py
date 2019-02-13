@@ -49,7 +49,7 @@ class Lambda(object):
         self.lambd = lambd
 
     def __call__(self, input):
-        return lambd(input)
+        return self.lambd(input)
 
 class Resize(object):
     def __init__(self, size):
@@ -68,8 +68,8 @@ class RandomCrop(object):
         self.size = size
 
     def __call__(self, input):
-        y = np.random.choice(input.shape[0] - self.size)
-        x = np.random.choice(input.shape[1] - self.size)
+        y = random.randint(0, input.shape[0] - self.size)
+        x = random.randint(0, input.shape[1] - self.size)
         return input[y : y + self.size, x : x + self.size, : ]
 
 class CornerCrop(object):

@@ -1,6 +1,7 @@
 import os
 import math
 import random
+import hashlib
 
 import numpy as np
 
@@ -13,9 +14,45 @@ from .image_util import imread
 from .transform_util import CornerCrop
 
 
+class RenderLogger(object):
+    def __init__(self, data = None):
+        super(RenderLogger, self).__init__()
+        if data == None:
+            self.data = dict()
+        else:
+            self.data = data
+        self.latest_cfg_id = None
+
+    def new(self, cfg_id):
+        self.latest_cfg_id = cfg_id
+        self.data[cfg_id] = dict()
+
+    def log(self, key, val):
+        assert(self.latest_cfg_id != None)
+        self.data[self.latest_cfg_id][key] = val
+
+    def get_data(self):
+        return self.data.copy()
+
+class RenderConfig(object):
+    def __init__(self, data):
+        super(RenderConfig, self).__init__()
+        self.data = data
+
+    def set_config(self, cfg_id):
+        self.cfg_id = cfg_id
+
+    def get_val(self, key):
+        return self.data[self.cfg_id][key]
+
 class Render(object):
-    def __init__(self, meshes_path, out_sz, num_samples, max_bounces, device):
+    def __init__(self, meshes_path, out_sz, num_samples, max_bounces, device,
+            logger = None, config = None):
         super(Render, self).__init__()
+        # Image write logger
+        self.logger = logger
+        self.config = config
+
         # Redner GPU Configs
         self.device = device
         pyredner.set_use_gpu(self.device != torch.device('cpu'))
@@ -27,29 +64,55 @@ class Render(object):
         self.max_bounces = max_bounces
 
         # Camera Config Sampling
-        def pos_sample():
-            #d = 3.0 + random.uniform(1.0, 1.0) * 3.0
-            #phi = random.uniform(0.25, 0.25) * math.pi * 2
-            #theta = math.acos(1 - random.uniform(1.0, 1.0))
-            #x, y, z = math.cos(phi)*math.sin(theta)*d,\
-            #          math.cos(theta)*d,\
-            #          math.sin(phi)*math.sin(theta)*d
-            #return (x, y, z)
-            return (0.0, 0.75, random.choice([-8.0, 8.0]))
-        def look_sample():
-            #x, y, z = random.uniform(-1.0, 1.0),\
-            #          random.uniform(-1.0, 1.0,\
-            #          random.uniform(-1.0, 1.0)
-            #return (x, y, z)
-            return (0.0, 0.75, 0.0)
-        def up_sample():
+        def pos_sample(override = None, logger = None):
+            if override == None:
+                d = 6.0 + random.uniform(1.0, 1.0) * 1.0
+                #phi = random.uniform(0.25, 0.25) * math.pi * 2
+                phi = random.uniform(0.24, 0.25) * math.pi * 2
+                #theta = math.acos(1 - random.uniform(1.0, 1.0))
+                theta = math.acos(1 - random.uniform(0.95, 1.0))
+                x, y, z = math.cos(phi)*math.sin(theta)*d,\
+                          math.cos(theta)*d + 0.75,\
+                          math.sin(phi)*math.sin(theta)*d
+                out = (x, y, z)
+            else:
+                out = override
+            #out = (0.0, 0.75, random.choice([-8.0, 8.0]))
+            if logger != None:
+                logger.log('cam_position', out)
+            return out
+        def look_sample(override = None, logger = None):
+            if override == None:
+                x, y, z = random.uniform(-0.1, 0.1),\
+                          random.uniform(-0.1, 0.1) + 0.75,\
+                          random.uniform(-0.1, 0.1)
+                out = (x, y, z)
+            else:
+                out = override
+            #out = (0.0, 0.75, 0.0)
+            if logger != None:
+                logger.log('cam_look_at', out)
+            return out
+        def up_sample(override = None, logger = None):
             #x, y, z = random.uniform(-0.2, 0.2),\
             #          1.0,\
             #          random.uniform(-0.2, 0.2)
             #return (x, y, z)
-            return (0.0, 1.0, 0.0)
-        def seed_sample():
-            return random.randint(0, 255)
+            if override == None:
+                out =  (0.0, 1.0, 0.0)
+            else:
+                out = override
+            if logger != None:
+                logger.log('cam_up', out)
+            return out
+        def seed_sample(override = None, logger = None):
+            if override == None:
+                out = random.randint(0, 255)
+            else:
+                out = override
+            if logger != None:
+                logger.log('render_seed', out)
+            return out
 
         self.sampler = {
             'position': pos_sample,
@@ -96,16 +159,34 @@ class Render(object):
             dtype=torch.float32, device=self.device)
         self.envmap = pyredner.EnvironmentMap(img)
 
-    def __call__(self, sample):
+    def __call__(self, input, name = None):
+        # Init Logger entry
+        if self.logger != None:
+            if name == None:
+                name = hashlib.sha256(str(random.randint(0, 10000)).encode('utf-8')).hexdigest()[:6]
+            self.logger.new(name)
+
+        # Init Configurator
+        if self.config == None:
+            position = self.sampler['position'](logger = self.logger)
+            look_at = self.sampler['look_at'](logger = self.logger)
+            up = self.sampler['up'](logger = self.logger)
+            seed = self.sampler['seed'](logger = self.logger)
+        else:
+            position = self.sampler['position'](self.config.get_val('cam_position'), logger = self.logger)
+            look_at = self.sampler['look_at'](self.config.get_val('cam_look_at'), logger = self.logger)
+            up = self.sampler['up'](self.config.get_val('cam_up'), logger = self.logger)
+            seed = self.sampler['seed'](self.config.get_val('render_seed'), logger = self.logger)
+
         # Sample Material
-        assert(isinstance(sample, torch.Tensor))
-        assert(sample.device == self.device)
+        assert(isinstance(input, torch.Tensor))
+        assert(input.device == self.device)
         material = pyredner.Material(
-            diffuse_reflectance = sample,
-            specular_reflectance = torch.tensor(
-                [0.7, 0.7, 0.7], device=self.device),
-            roughness = torch.tensor(
-                [0.05], device=self.device)
+            diffuse_reflectance = input,
+            #specular_reflectance = torch.tensor(
+            #    [0.7, 0.7, 0.7], device=self.device),
+            #roughness = torch.tensor(
+            #    [0.05], device=self.device)
         )
 
         # Sample mesh choice
@@ -113,9 +194,9 @@ class Render(object):
 
         # Sample Camera Params
         camera = pyredner.Camera(
-            position     = torch.tensor(self.sampler['position']()),
-            look_at      = torch.tensor(self.sampler['look_at']()),
-            up           = torch.tensor(self.sampler['up']()),
+            position     = torch.tensor(position),
+            look_at      = torch.tensor(look_at),
+            up           = torch.tensor(up),
             fov          = torch.tensor([45.0]),
             clip_near    = 1e-2,
             resolution   = self.resolution,
@@ -135,7 +216,7 @@ class Render(object):
             num_samples = self.num_samples,
             max_bounces = self.max_bounces,
             channels = [redner.channels.radiance, redner.channels.alpha])
-        out = pyredner.RenderFunction.apply(self.sampler['seed'](), *args)
+        out = pyredner.RenderFunction.apply(seed, *args)
 
         black = torch.zeros((*self.resolution, 3), device = self.device)
         out = out[:, :, :3] * out[:, :, 3:4] + black * (1 - out[:, :, 3:4])

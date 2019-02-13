@@ -75,7 +75,7 @@ def __adjust(img):
 
 
 def __scale_width(img, target_width):
-    ow, oh = img.size
+    ow, oh = img.shape[:2]
 
     # the size needs to be a multiple of this number,
     # because going through generator network may change img size
