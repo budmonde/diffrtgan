@@ -49,22 +49,86 @@ class Render(object):
     def __init__(self, meshes_path, out_sz, num_samples, max_bounces, device,
             logger = None, config = None):
         super(Render, self).__init__()
-        # Image write logger
+        # Image write logger and scene config overrider
         self.logger = logger
         self.config = config
+        self.sampler = dict()
 
         # Redner GPU Configs
         self.device = device
         pyredner.set_use_gpu(self.device != torch.device('cpu'))
         pyredner.set_device(self.device)
 
-        # Render output Configs
+        # Render output configs
         self.resolution = (out_sz, out_sz)
         self.num_samples = num_samples
         self.max_bounces = max_bounces
 
+        def get_children_path_list(path):
+            return ['{}/{}'.format(path, f) for f in os.listdir(path)]
+
+        # Load Car Meshes
+        def get_mesh_geometry(mesh_path):
+            mtl, geo, light = pyredner.load_obj(mesh_path)
+            main = geo[0][1]
+            return {
+                'vertices': main.vertices,
+                'indices' : main.indices,
+                'uvs'     : main.uvs,
+                'normals' : main.normals
+            }
+
+        def define_Shape(kwargs, m_id):
+            return pyredner.Shape(**kwargs, material_id = m_id)
+
+        self.meshes = dict(map(
+            lambda mesh_path: (mesh_path, define_Shape(get_mesh_geometry(mesh_path), 0)),
+            get_children_path_list(meshes_path)
+        ))
+
+        def geo_mesh_path_sample(override = None, logger = None):
+            if override == None:
+                key = random.choice(list(self.meshes.keys()))
+            else:
+                key = override
+            if logger != None:
+                logger.log('geo_mesh_path', key)
+            return key
+        self.sampler['geo_mesh_path'] = geo_mesh_path_sample
+
+        # NOTE: temporarily disabled until shape id feature is enabled
+        # Load floor mesh and material
+        #self.floor_shape = define_Shape(
+        #    get_mesh_geometry('datasets/meshes/plane/plane.obj'), 1)
+
+        #self.floor_mtl = pyredner.Material(
+        #    diffuse_reflectance = torch.tensor(
+        #        [0.5, 0.5, 0.5], device = self.device)
+        #)
+
+        # NOTE: Tzu-mao has a bug in his code in texture.py:41 for large env
+        def get_envmap_tensor(envmap_path):
+            return torch.tensor(imread(envmap_path),\
+                dtype=torch.float32, device=self.device)
+
+        # Load Environment Maps
+        # TODO: move path into arguments list
+        self.envmaps = dict(map(
+            lambda envmap_path: (envmap_path, pyredner.EnvironmentMap(get_envmap_tensor(envmap_path))),
+            get_children_path_list('datasets/envmaps/rasters/')
+        ))
+        def geo_envmap_path_sample(override = None, logger = None):
+            if override == None:
+                key = random.choice(list(self.envmaps.keys()))
+            else:
+                key = override
+            if logger != None:
+                logger.log('geo_envmap_path', key)
+            return key
+        self.sampler['geo_envmap_path'] = geo_envmap_path_sample
+
         # Camera Config Sampling
-        def pos_sample(override = None, logger = None):
+        def cam_position_sample(override = None, logger = None):
             if override == None:
                 d = 6.0 + random.uniform(1.0, 1.0) * 1.0
                 #phi = random.uniform(0.25, 0.25) * math.pi * 2
@@ -81,7 +145,7 @@ class Render(object):
             if logger != None:
                 logger.log('cam_position', out)
             return out
-        def look_sample(override = None, logger = None):
+        def cam_look_at_sample(override = None, logger = None):
             if override == None:
                 x, y, z = random.uniform(-0.1, 0.1),\
                           random.uniform(-0.1, 0.1) + 0.75,\
@@ -93,7 +157,7 @@ class Render(object):
             if logger != None:
                 logger.log('cam_look_at', out)
             return out
-        def up_sample(override = None, logger = None):
+        def cam_up_sample(override = None, logger = None):
             #x, y, z = random.uniform(-0.2, 0.2),\
             #          1.0,\
             #          random.uniform(-0.2, 0.2)
@@ -105,7 +169,7 @@ class Render(object):
             if logger != None:
                 logger.log('cam_up', out)
             return out
-        def seed_sample(override = None, logger = None):
+        def render_seed_sample(override = None, logger = None):
             if override == None:
                 out = random.randint(0, 255)
             else:
@@ -113,51 +177,10 @@ class Render(object):
             if logger != None:
                 logger.log('render_seed', out)
             return out
-
-        self.sampler = {
-            'position': pos_sample,
-            'look_at':  look_sample,
-            'up':       up_sample,
-            'seed':     seed_sample
-        }
-
-        # Load Car Meshes
-        def get_children_path_list(path):
-            return ['{}/{}'.format(path, f) for f in os.listdir(path)]
-
-        def get_mesh_geometry(mesh_path):
-            mtl, geo, light = pyredner.load_obj(mesh_path)
-            main = geo[0][1]
-            return {
-                'vertices': main.vertices,
-                'indices' : main.indices,
-                'uvs'     : main.uvs,
-                'normals' : main.normals
-            }
-
-        def define_Shape(kwargs, m_id):
-            return pyredner.Shape(**kwargs, material_id = m_id)
-
-        self.meshes = list(map(
-            lambda mesh_path: define_Shape(get_mesh_geometry(mesh_path), 0),
-            get_children_path_list(meshes_path)
-        ))
-
-        # NOTE: temporarily disabled until shape id feature is enabled
-        # Load floor mesh and material
-        #self.floor_shape = define_Shape(
-        #    get_mesh_geometry('datasets/meshes/plane/plane.obj'), 1)
-
-        #self.floor_mtl = pyredner.Material(
-        #    diffuse_reflectance = torch.tensor(
-        #        [0.5, 0.5, 0.5], device = self.device)
-        #)
-
-        # Load Environment Map
-        # NOTE: Tzu-mao has a bug in his code in texture.py:41 for large env
-        img = torch.tensor(imread('datasets/envmaps/sunsky.exr'),\
-            dtype=torch.float32, device=self.device)
-        self.envmap = pyredner.EnvironmentMap(img)
+        self.sampler['cam_position'] = cam_position_sample
+        self.sampler['cam_look_at'] = cam_look_at_sample
+        self.sampler['cam_up'] = cam_up_sample
+        self.sampler['render_seed'] = render_seed_sample
 
     def __call__(self, input, name = None):
         # Init Logger entry
@@ -168,15 +191,19 @@ class Render(object):
 
         # Init Configurator
         if self.config == None:
-            position = self.sampler['position'](logger = self.logger)
-            look_at = self.sampler['look_at'](logger = self.logger)
-            up = self.sampler['up'](logger = self.logger)
-            seed = self.sampler['seed'](logger = self.logger)
+            mesh_path = self.sampler['geo_mesh_path'](logger = self.logger)
+            envmap_path = self.sampler['geo_envmap_path'](logger = self.logger)
+            position = self.sampler['cam_position'](logger = self.logger)
+            look_at = self.sampler['cam_look_at'](logger = self.logger)
+            up = self.sampler['cam_up'](logger = self.logger)
+            seed = self.sampler['render_seed'](logger = self.logger)
         else:
-            position = self.sampler['position'](self.config.get_val('cam_position'), logger = self.logger)
-            look_at = self.sampler['look_at'](self.config.get_val('cam_look_at'), logger = self.logger)
-            up = self.sampler['up'](self.config.get_val('cam_up'), logger = self.logger)
-            seed = self.sampler['seed'](self.config.get_val('render_seed'), logger = self.logger)
+            mesh_path = self.sampler['geo_mesh_path'](self.config.get_val('geo_mesh_path'), logger = self.logger)
+            envmap_path = self.sampler['geo_envmap_path'](self.config.get_val('geo_envmap_path'), logger = self.logger)
+            position = self.sampler['cam_position'](self.config.get_val('cam_position'), logger = self.logger)
+            look_at = self.sampler['cam_look_at'](self.config.get_val('cam_look_at'), logger = self.logger)
+            up = self.sampler['cam_up'](self.config.get_val('cam_up'), logger = self.logger)
+            seed = self.sampler['render_seed'](self.config.get_val('render_seed'), logger = self.logger)
 
         # Sample Material
         assert(isinstance(input, torch.Tensor))
@@ -189,8 +216,11 @@ class Render(object):
             #    [0.05], device=self.device)
         )
 
-        # Sample mesh choice
-        shape = random.choice(self.meshes)
+        # Sample car_mesh choice
+        car_mesh = self.meshes[mesh_path]
+
+        # Sample environment map choice
+        envmap = self.envmaps[envmap_path]
 
         # Sample Camera Params
         camera = pyredner.Camera(
@@ -208,9 +238,9 @@ class Render(object):
         # removing variables redner allocates
         self.scene = pyredner.Scene(
             camera,
-            [shape],#self.floor_shape],
+            [car_mesh],#self.floor_shape],
             [material],#self.floor_mtl],
-            [], self.envmap)
+            [], envmap)
         args = pyredner.RenderFunction.serialize_scene(
             scene = self.scene,
             num_samples = self.num_samples,

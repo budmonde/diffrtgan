@@ -4,12 +4,12 @@ from util.image_util import imread, imwrite
 from util.torch_util import RenderLayer
 
 
-meshes_path = "datasets/meshes/one"
+meshes_path = "./datasets/meshes/one"
 fineSize = 256
 num_samples = 4
 max_bounces = 2
 device = torch.device('cuda:0')
-inp_path = "datasets/textures/checkerboard/train/checkerboard.png"
+inp_path = "./datasets/textures/checkerboard/train/checkerboard.png"
 
 inp = torch.tensor(imread(inp_path), dtype=torch.float32, device=device)
 

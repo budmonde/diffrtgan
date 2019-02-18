@@ -7,8 +7,8 @@ from util.transform_util import CornerCrop, Resize
 
 fineSize = 500
 device = torch.device('cuda:0')
-bkgd_path = "datasets/textures/transparency/transparency.png"
-inp_path = "datasets/textures/transparent_checkerboard/train/transparent_checkerboard.png"
+bkgd_path = "./datasets/textures/transparency/transparency.png"
+inp_path = "./datasets/textures/transparent_checkerboard/train/transparent_checkerboard.png"
 
 #transform = CornerCrop(fineSize)
 transform = Resize(fineSize)

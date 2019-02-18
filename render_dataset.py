@@ -8,14 +8,14 @@ from util.image_util import imread, imwrite
 from util.render_util import RenderLogger, Render
 
 
-meshes_path = "datasets/meshes/one"
+meshes_path = "./datasets/meshes/one"
 fineSize = 512
 num_samples = 20
 max_bounces = 2
 device = torch.device('cuda:0')
-inp_path = "datasets/textures/checkerboard/train/checkerboard.png"
+inp_path = "./datasets/textures/checkerboard/train/checkerboard.png"
 
-out_path = "datasets/renders/"
+out_path = "./datasets/renders/"
 num_imgs = 1000
 
 inp = torch.tensor(imread(inp_path), dtype=torch.float32, device=device)

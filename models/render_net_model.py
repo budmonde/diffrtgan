@@ -23,7 +23,7 @@ class RenderNetModel(BaseModel):
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
         parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')
         parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
-        parser.add_argument('--config_path', type=str, default='datasets/empty.json', help='Path to camera configs for target images')
+        parser.add_argument('--config_path', type=str, default='./datasets/empty.json', help='Path to camera configs for target images')
 
         parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/transparency/transparency.png', help='Compositing background used for visualization of semi-transparent textures')
         return parser
