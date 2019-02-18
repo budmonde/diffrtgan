@@ -46,7 +46,7 @@ class RenderConfig(object):
         return self.data[self.cfg_id][key]
 
 class Render(object):
-    def __init__(self, meshes_path, out_sz, num_samples, max_bounces, device,
+    def __init__(self, meshes_path, envmaps_path, out_sz, num_samples, max_bounces, device,
             logger = None, config = None):
         super(Render, self).__init__()
         # Image write logger and scene config overrider
@@ -65,7 +65,7 @@ class Render(object):
         self.max_bounces = max_bounces
 
         def get_children_path_list(path):
-            return ['{}/{}'.format(path, f) for f in os.listdir(path)]
+            return [os.path.join(path, f) for f in os.listdir(path)]
 
         # Load Car Meshes
         def get_mesh_geometry(mesh_path):
@@ -115,7 +115,7 @@ class Render(object):
         # TODO: move path into arguments list
         self.envmaps = dict(map(
             lambda envmap_path: (envmap_path, pyredner.EnvironmentMap(get_envmap_tensor(envmap_path))),
-            get_children_path_list('datasets/envmaps/rasters/')
+            get_children_path_list(envmaps_path)
         ))
         def geo_envmap_path_sample(override = None, logger = None):
             if override == None:
@@ -253,27 +253,27 @@ class Render(object):
         return out
 
 class Composit(object):
-    def __init__(self, bkgd, size, device):
+    def __init__(self, background, size, device):
         super(Composit, self).__init__()
         self.size = size
         self.device = device
         self.crop = CornerCrop(size)
         # TODO: this is probably not the best way to do this
-        self.rng = bkgd is None
+        self.rng = background is None
 
         if self.rng:
-            self.bkgd = None
+            self.background = None
         else:
-            self.bkgd = torch.tensor(self.crop(bkgd), device=device)
+            self.background = torch.tensor(self.crop(background), device=device)
 
     def __call__(self, input):
         # input is in format HWC
         if self.rng:
-            #bkgd_color = (random.uniform(0.0, 1.0),
+            #background_color = (random.uniform(0.0, 1.0),
             #              random.uniform(0.0, 1.0),
             #              random.uniform(0.0, 1.0))
-            bkgd_color = (0.8, 0.8, 0.8)
-            self.bkgd = torch.tensor(bkgd_color, device=self.device)\
-                             .expand(self.size, self.size, len(bkgd_color))
+            background_color = (0.8, 0.8, 0.8)
+            self.background = torch.tensor(background_color, device=self.device)\
+                             .expand(self.size, self.size, len(background_color))
         alpha = input[:,:,-1:]
-        return alpha * input[:,:,:-1] + (1 - alpha) * self.bkgd
+        return alpha * input[:,:,:-1] + (1 - alpha) * self.background

@@ -20,6 +20,7 @@ class RenderNetModel(BaseModel):
     def modify_commandline_options(parser, is_train=True):
         parser.set_defaults(input_nc=4, no_flip=True, loadSize=256)
         parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one', help='Path of mesh pool to render')
+        parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/rasters', help='Path of envmap pool to render')
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
         parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')
         parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
@@ -48,13 +49,34 @@ class RenderNetModel(BaseModel):
         self.netG = networks.define_G(opt.input_nc, opt.texture_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        rnd_bkgd = None
-        vis_bkgd = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
+        render_background = None
+        visdom_background = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
 
         self.render_config = RenderConfig(json.loads(open(opt.config_path).read()))
-        self.render_layer = NormalizedRenderLayer(
-                opt.meshes_path, rnd_bkgd, opt.fineSize, opt.mc_subsampling, opt.mc_max_bounces, self.device, config = self.render_config)
-        self.composit_layer = NormalizedCompositLayer(vis_bkgd, opt.fineSize, self.device)
+
+        render_kwargs = {
+            "meshes_path": opt.meshes_path,
+            "envmaps_path": opt.envmaps_path,
+            "out_sz": opt.fineSize,
+            "num_samples": opt.mc_subsampling,
+            "max_bounces": opt.mc_max_bounces,
+            "device": self.device,
+            "logger": None,
+            "config": self.render_config,
+        }
+        composit_kwargs = {
+            "background": render_background,
+            "size": opt.fineSize,
+            "device": self.device,
+        }
+        self.render_layer = NormalizedRenderLayer(render_kwargs, composit_kwargs)
+
+        visdom_composit_kwargs = {
+            "background": render_background,
+            "size": opt.fineSize,
+            "device": self.device,
+        }
+        self.composit_layer = NormalizedCompositLayer(**visdom_composit_kwargs)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan

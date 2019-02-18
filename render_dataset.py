@@ -9,6 +9,7 @@ from util.render_util import RenderLogger, Render
 
 
 meshes_path = "./datasets/meshes/one"
+envmaps_path = "./datasets/envmaps/rasters"
 fineSize = 512
 num_samples = 20
 max_bounces = 2
@@ -21,7 +22,7 @@ num_imgs = 1000
 inp = torch.tensor(imread(inp_path), dtype=torch.float32, device=device)
 render_logger = RenderLogger()
 renderer = Render(
-    meshes_path, fineSize, num_samples, max_bounces, device, logger = render_logger)
+    meshes_path, envmaps_path, fineSize, num_samples, max_bounces, device, logger = render_logger)
 
 for i in range(num_imgs):
     name = hashlib.sha256(str(random.randint(0, 100000000)).encode('utf-8')).hexdigest()[:6]
