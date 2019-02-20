@@ -13,6 +13,14 @@ class RenderLayer(nn.Module):
         out = self.renderer(input)
         return out
 
+class PostCompositLayer(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super(PostCompositLayer, self).__init__()
+        self.transform = PostComposit(*args, **kwargs)
+
+    def forward(self, input):
+        return self.transform(input)
+
 class CompositLayer(nn.Module):
     def __init__(self, *args, **kwargs):
         super(CompositLayer, self).__init__()
@@ -20,7 +28,6 @@ class CompositLayer(nn.Module):
 
     def forward(self, input):
         return self.transform(input)
-
 
 class HWC2CHWLayer(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -88,6 +95,7 @@ class NormalizedRenderLayer(nn.Module):
                 CHW2HWCLayer(),
                 CompositLayer(**composit_kwargs),
                 RenderLayer(**render_kwargs),
+                PostCompositLayer(render_kwargs['out_sz'], render_kwargs['device']),
                 HWC2CHWLayer(),
                 NormalizeLayer(0.5, 0.5),
                 AddBatchDimLayer(),

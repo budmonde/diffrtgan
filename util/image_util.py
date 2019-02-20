@@ -24,11 +24,13 @@ def imwrite(img, filename, normalize = False):
         img_rng = np.max(img) - np.min(img)
         if img_rng > 0:
             img = (img - np.min(img)) / img_rng
+
+    if len(img.shape) == 2:
+        img = img.reshape((img.shape[0], img.shape[1], 1))
+    if img.shape[2] == 1:
+        img = np.tile(img, (1, 1, 3))
+
     if filename[-4:] == '.exr':
-        if len(img.shape) == 2:
-            img = img.reshape((img.shape[0], img.shape[1], 1))
-        if img.shape[2] == 1:
-            img = np.tile(img, (1, 1, 3))
         img_r = img[:, :, 0]
         img_g = img[:, :, 1]
         img_b = img[:, :, 2]

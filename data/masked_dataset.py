@@ -20,7 +20,7 @@ class MaskedDataset(BaseDataset):
         self.opt = opt
         self.root = opt.dataroot
 
-        self.dir_B = os.path.join(opt.dataroot, 'img_out')
+        self.dir_B = os.path.join(opt.dataroot, 'img')
         self.B_paths = make_dataset(self.dir_B)
         self.B_paths = sorted(self.B_paths)
         self.B_size = len(self.B_paths)

@@ -46,7 +46,7 @@ class RenderConfig(object):
         return self.data[self.cfg_id][key]
 
 class Render(object):
-    def __init__(self, meshes_path, envmaps_path, out_sz, num_samples, max_bounces, device, logger = None, config = None):
+    def __init__(self, meshes_path, envmaps_path, out_sz, num_samples, max_bounces, device, channels = ['radiance', 'alpha'], logger = None, config = None):
         super(Render, self).__init__()
         # Image write logger and scene config overrider
         self.logger = logger
@@ -62,6 +62,10 @@ class Render(object):
         self.resolution = (out_sz, out_sz)
         self.num_samples = num_samples
         self.max_bounces = max_bounces
+
+        self.channels = list()
+        for ch in channels:
+            self.channels.append(getattr(redner.channels, ch))
 
         def get_children_path_list(path):
             return [os.path.join(path, f) for f in os.listdir(path)]
@@ -262,12 +266,21 @@ class Render(object):
             scene = self.scene,
             num_samples = self.num_samples,
             max_bounces = self.max_bounces,
-            channels = [redner.channels.radiance, redner.channels.alpha])
+            channels = self.channels)
         out = pyredner.RenderFunction.apply(seed, *args)
 
-        black = torch.zeros((*self.resolution, 3), device = self.device)
-        out = out[:, :, :3] * out[:, :, 3:4] + black * (1 - out[:, :, 3:4])
         return out
+
+# TODO: this is not the best workaround for my new Renderer
+class PostComposit(object):
+    def __init__(self, size, device):
+        super(PostComposit, self).__init__()
+        self.resolution = (size, size)
+        self.device = device
+
+    def __call__(self, input):
+        black = torch.zeros((*self.resolution, 3), device = self.device)
+        return input[:, :, :3] * input[:, :, 3:4] + black * (1 - input[:, :, 3:4])
 
 class Composit(object):
     def __init__(self, background, size, device):
