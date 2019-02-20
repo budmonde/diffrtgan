@@ -8,7 +8,7 @@ from util.image_util import imread, imwrite
 from util.render_util import RenderLogger, Render
 
 
-meshes_path = "./datasets/meshes/one"
+meshes_path = "./datasets/meshes/one_mtl"
 envmaps_path = "./datasets/envmaps/rasters"
 fineSize = 512
 num_samples = 20

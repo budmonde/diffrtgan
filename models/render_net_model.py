@@ -19,7 +19,7 @@ class RenderNetModel(BaseModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         parser.set_defaults(input_nc=4, no_flip=True, loadSize=256)
-        parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one', help='Path of mesh pool to render')
+        parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one_mtl', help='Path of mesh pool to render')
         parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/rasters', help='Path of envmap pool to render')
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
         parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')

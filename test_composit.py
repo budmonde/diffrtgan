@@ -23,7 +23,7 @@ composit_layer = CompositLayer(bkgd, fineSize, device)
 composit = composit_layer(inp)
 imwrite(composit, "debug/test_composit_out.png")
 
-meshes_path = "./datasets/meshes/one"
+meshes_path = "./datasets/meshes/one_mtl"
 envmaps_path = "./datasets/envmaps/rasters"
 fineSize = 256
 num_samples = 4

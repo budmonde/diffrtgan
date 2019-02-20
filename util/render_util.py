@@ -46,8 +46,7 @@ class RenderConfig(object):
         return self.data[self.cfg_id][key]
 
 class Render(object):
-    def __init__(self, meshes_path, envmaps_path, out_sz, num_samples, max_bounces, device,
-            logger = None, config = None):
+    def __init__(self, meshes_path, envmaps_path, out_sz, num_samples, max_bounces, device, logger = None, config = None):
         super(Render, self).__init__()
         # Image write logger and scene config overrider
         self.logger = logger
@@ -69,21 +68,37 @@ class Render(object):
 
         # Load Car Meshes
         def get_mesh_geometry(mesh_path):
-            mtl, geo, light = pyredner.load_obj(mesh_path)
-            main = geo[0][1]
+            mtl_map, mesh_list, _ = pyredner.load_obj(mesh_path)
+            mtl_id_map = dict()
+            materials = list()
+            cnt = 0
+            for k, v in mtl_map.items():
+                mtl_id_map[k] = cnt
+                cnt += 1
+                materials.append(v)
+            # TODO: hardcoded. fix to make it load from a config file
+            learn_tex_idx = mtl_id_map['car_paint']
+            shapes = list()
+            for mtl_name, mesh in mesh_list:
+                shapes.append(pyredner.Shape(
+                    vertices = mesh.vertices,
+                    indices = mesh.indices,
+                    uvs = mesh.uvs,
+                    normals = mesh.normals,
+                    material_id = mtl_id_map[mtl_name]
+                ))
             return {
-                'vertices': main.vertices,
-                'indices' : main.indices,
-                'uvs'     : main.uvs,
-                'normals' : main.normals
+                'materials': materials,
+                'shapes': shapes,
+                'learn_tex_idx': learn_tex_idx,
             }
 
-        def define_Shape(kwargs, m_id):
-            return pyredner.Shape(**kwargs, material_id = m_id)
-
         self.meshes = dict(map(
-            lambda mesh_path: (mesh_path, define_Shape(get_mesh_geometry(mesh_path), 0)),
-            get_children_path_list(meshes_path)
+            lambda mesh_path: (mesh_path, get_mesh_geometry(mesh_path)),
+            list(filter(
+                lambda fn: fn.split('.')[-1] == 'obj',
+                get_children_path_list(meshes_path)
+            ))
         ))
 
         def geo_mesh_path_sample(override = None, logger = None):
@@ -107,16 +122,16 @@ class Render(object):
         #)
 
         # NOTE: Tzu-mao has a bug in his code in texture.py:41 for large env
-        def get_envmap_tensor(envmap_path):
-            return torch.tensor(imread(envmap_path),\
-                dtype=torch.float32, device=self.device)
+        def get_envmap(envmap_path):
+            return pyredner.EnvironmentMap(torch.tensor(imread(envmap_path),\
+                dtype=torch.float32, device=self.device))
 
         # Load Environment Maps
-        # TODO: move path into arguments list
         self.envmaps = dict(map(
-            lambda envmap_path: (envmap_path, pyredner.EnvironmentMap(get_envmap_tensor(envmap_path))),
+            lambda envmap_path: (envmap_path, get_envmap(envmap_path)),
             get_children_path_list(envmaps_path)
         ))
+
         def geo_envmap_path_sample(override = None, logger = None):
             if override == None:
                 key = random.choice(list(self.envmaps.keys()))
@@ -205,19 +220,21 @@ class Render(object):
             up = self.sampler['cam_up'](self.config.get_val('cam_up'), logger = self.logger)
             seed = self.sampler['render_seed'](self.config.get_val('render_seed'), logger = self.logger)
 
-        # Sample Material
+        # Sample car_mesh Choice
+        car_mesh = self.meshes[mesh_path]
+        shapes = car_mesh['shapes']
+        materials = car_mesh['materials']
+
+        # Set Learneable Material
         assert(isinstance(input, torch.Tensor))
         assert(input.device == self.device)
-        material = pyredner.Material(
+        materials[car_mesh['learn_tex_idx']] = pyredner.Material(
             diffuse_reflectance = input,
             #specular_reflectance = torch.tensor(
             #    [0.7, 0.7, 0.7], device=self.device),
             #roughness = torch.tensor(
             #    [0.05], device=self.device)
         )
-
-        # Sample car_mesh choice
-        car_mesh = self.meshes[mesh_path]
 
         # Sample environment map choice
         envmap = self.envmaps[envmap_path]
@@ -238,8 +255,8 @@ class Render(object):
         # removing variables redner allocates
         self.scene = pyredner.Scene(
             camera,
-            [car_mesh],#self.floor_shape],
-            [material],#self.floor_mtl],
+            shapes,#self.floor_shape],
+            materials,#self.floor_mtl],
             [], envmap)
         args = pyredner.RenderFunction.serialize_scene(
             scene = self.scene,

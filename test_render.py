@@ -4,8 +4,8 @@ from util.image_util import imread, imwrite
 from util.torch_util import RenderLayer
 
 
-meshes_path = "./datasets/meshes/one"
-envmaps_path = "./datasets/envmaps/rasters"
+meshes_path = "./datasets/meshes/one_mtl"
+envmaps_path = "./datasets/envmaps/one"
 fineSize = 256
 num_samples = 4
 max_bounces = 2
