@@ -61,8 +61,7 @@ class GbufferModel(BaseModel):
         self.netG = networks.define_G(opt.input_nc, opt.texture_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        render_background = None
-        visdom_background = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
+        background = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
 
         self.render_config = RenderConfig(json.loads(open(opt.config_path).read()))
 
@@ -76,19 +75,14 @@ class GbufferModel(BaseModel):
             "logger": None,
             "config": self.render_config,
         }
-        composit_kwargs = {
-            "background": render_background,
-            "size": opt.fineSize,
-            "device": self.device,
-        }
-        self.render_layer = NormalizedRenderLayer(render_kwargs, composit_kwargs)
+        self.render_layer = NormalizedRenderLayer(render_kwargs)
 
-        visdom_composit_kwargs = {
-            "background": render_background,
+        composit_kwargs = {
+            "background": background,
             "size": opt.fineSize,
             "device": self.device,
         }
-        self.composit_layer = NormalizedCompositLayer(**visdom_composit_kwargs)
+        self.composit_layer = NormalizedCompositLayer(**composit_kwargs)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan

@@ -10,10 +10,15 @@ fineSize = 256
 num_samples = 4
 max_bounces = 2
 device = torch.device('cuda:0')
-inp_path = "./datasets/textures/checkerboard/train/checkerboard.png"
+opaque_path = "./datasets/textures/checkerboard/train/checkerboard.png"
+alpha_path = "./datasets/textures/decal/train/decal.png"
 
-inp = torch.tensor(imread(inp_path), dtype=torch.float32, device=device)
+opaque = torch.tensor(imread(opaque_path), dtype=torch.float32, device=device)
+alpha = torch.tensor(imread(alpha_path), dtype=torch.float32, device=device)
 
 render_layer = RenderLayer(meshes_path, envmaps_path, fineSize, num_samples, max_bounces, device)
-out = render_layer(inp)
-imwrite(out, "debug/test_render_out.png")
+
+out = render_layer(opaque)
+imwrite(out, "debug/test_render_opaque_out.png")
+out = render_layer(alpha)
+imwrite(out, "debug/test_render_alpha_out.png")

@@ -115,17 +115,6 @@ class Render(object):
             return key
         self.sampler['geo_mesh_path'] = geo_mesh_path_sample
 
-        # NOTE: temporarily disabled until shape id feature is enabled
-        # Load floor mesh and material
-        #self.floor_shape = define_Shape(
-        #    get_mesh_geometry('datasets/meshes/plane/plane.obj'), 1)
-
-        #self.floor_mtl = pyredner.Material(
-        #    diffuse_reflectance = torch.tensor(
-        #        [0.5, 0.5, 0.5], device = self.device)
-        #)
-
-        # NOTE: Tzu-mao has a bug in his code in texture.py:41 for large env
         def get_envmap(envmap_path):
             return pyredner.EnvironmentMap(torch.tensor(imread(envmap_path),\
                 dtype=torch.float32, device=self.device))
@@ -150,9 +139,7 @@ class Render(object):
         def cam_position_sample(override = None, logger = None):
             if override == None:
                 d = 6.0 + random.uniform(1.0, 1.0) * 1.0
-                #phi = random.uniform(0.25, 0.25) * math.pi * 2
                 phi = random.uniform(0.24, 0.25) * math.pi * 2
-                #theta = math.acos(1 - random.uniform(1.0, 1.0))
                 theta = math.acos(1 - random.uniform(0.95, 1.0))
                 x, y, z = math.cos(phi)*math.sin(theta)*d,\
                           math.cos(theta)*d + 0.75,\
@@ -180,7 +167,6 @@ class Render(object):
             #x, y, z = random.uniform(-0.2, 0.2),\
             #          1.0,\
             #          random.uniform(-0.2, 0.2)
-            #return (x, y, z)
             if override == None:
                 out =  (0.0, 1.0, 0.0)
             else:
@@ -232,12 +218,26 @@ class Render(object):
         # Set Learneable Material
         assert(isinstance(input, torch.Tensor))
         assert(input.device == self.device)
+        assert(input.shape[-1] == 3 or input.shape[-1] == 4)
+
+        # Alpha composit if input is semi-transparent
+        if input.shape[-1] == 4:
+            diffuse_background_color = (0.8, 0.8, 0.8)
+            specular_background_color = (0.8, 0.8, 0.8)
+            diffuse_background = torch.tensor(diffuse_background_color, device=self.device)\
+                                      .expand(*input.shape[:2], len(diffuse_background_color))
+            specular_background = torch.tensor(specular_background_color, device=self.device)\
+                                       .expand(*input.shape[:2], len(specular_background_color))
+            diffuse_reflectance = input[:,:,-1:] * input[:,:,:-1] + (1 - input[:,:,-1:]) * diffuse_background
+            specular_reflectance = (1 - input[:,:,-1:]) * specular_background
+        else:
+            diffuse_reflectance = input
+            specular_reflectance = torch.tensor((0.8, 0.8, 0.8), device=self.device)
+
         materials[car_mesh['learn_tex_idx']] = pyredner.Material(
-            diffuse_reflectance = input,
-            #specular_reflectance = torch.tensor(
-            #    [0.7, 0.7, 0.7], device=self.device),
-            #roughness = torch.tensor(
-            #    [0.05], device=self.device)
+            diffuse_reflectance = diffuse_reflectance,
+            specular_reflectance = specular_reflectance,
+            roughness = torch.tensor([0.05], device=self.device)
         )
 
         # Sample environment map choice
@@ -259,8 +259,8 @@ class Render(object):
         # removing variables redner allocates
         self.scene = pyredner.Scene(
             camera,
-            shapes,#self.floor_shape],
-            materials,#self.floor_mtl],
+            shapes,
+            materials,
             [], envmap)
         args = pyredner.RenderFunction.serialize_scene(
             scene = self.scene,
