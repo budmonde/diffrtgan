@@ -11,7 +11,6 @@ import redner
 import pyredner
 
 from .image_util import imread
-from .transform_util import CornerCrop
 
 
 class RenderLogger(object):
@@ -271,39 +270,3 @@ class Render(object):
 
         return out
 
-# TODO: this is not the best workaround for my new Renderer
-class PostComposit(object):
-    def __init__(self, size, device):
-        super(PostComposit, self).__init__()
-        self.resolution = (size, size)
-        self.device = device
-
-    def __call__(self, input):
-        black = torch.zeros((*self.resolution, 3), device = self.device)
-        return input[:, :, :3] * input[:, :, 3:4] + black * (1 - input[:, :, 3:4])
-
-class Composit(object):
-    def __init__(self, background, size, device):
-        super(Composit, self).__init__()
-        self.size = size
-        self.device = device
-        self.crop = CornerCrop(size)
-        # TODO: this is probably not the best way to do this
-        self.rng = background is None
-
-        if self.rng:
-            self.background = None
-        else:
-            self.background = torch.tensor(self.crop(background), device=device)
-
-    def __call__(self, input):
-        # input is in format HWC
-        if self.rng:
-            #background_color = (random.uniform(0.0, 1.0),
-            #              random.uniform(0.0, 1.0),
-            #              random.uniform(0.0, 1.0))
-            background_color = (0.8, 0.8, 0.8)
-            self.background = torch.tensor(background_color, device=self.device)\
-                             .expand(self.size, self.size, len(background_color))
-        alpha = input[:,:,-1:]
-        return alpha * input[:,:,:-1] + (1 - alpha) * self.background

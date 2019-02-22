@@ -10,8 +10,8 @@ from util.render_util import RenderLogger, Render
 
 meshes_path = "./datasets/meshes/one_mtl"
 envmaps_path = "./datasets/envmaps/rasters"
-fineSize = 512
-num_samples = 20
+fineSize = 256
+num_samples = 4
 max_bounces = 2
 device = torch.device('cuda:0')
 channels = [

@@ -87,14 +87,14 @@ class NormalizedCompositLayer(nn.Module):
         return out
 
 class NormalizedRenderLayer(nn.Module):
-    def __init__(self, render_kwargs):
+    def __init__(self, render_kwargs, composit_kwargs):
         super(NormalizedRenderLayer, self).__init__()
         self.model = nn.Sequential(
                 StripBatchDimLayer(),
                 NormalizeLayer(-1.0, 2.0),
                 CHW2HWCLayer(),
                 RenderLayer(**render_kwargs),
-                PostCompositLayer(render_kwargs['out_sz'], render_kwargs['device']),
+                CompositLayer(**composit_kwargs),
                 HWC2CHWLayer(),
                 NormalizeLayer(0.5, 0.5),
                 AddBatchDimLayer(),

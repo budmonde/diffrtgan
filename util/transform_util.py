@@ -32,6 +32,20 @@ class PIL2NP(object):
     def __call__(self, input):
         return np.array(input) / 255.
 
+class Composit(object):
+    def __init__(self, background, size, device):
+        super(Composit, self).__init__()
+        self.device = device
+        self.background = torch.tensor(
+                Resize(size)(background),
+                dtype=torch.float32,
+                device=device)
+
+    def __call__(self, input):
+        # input is in format HWC
+        alpha = input[:,:,-1:]
+        return alpha * input[:,:,:-1] + (1 - alpha) * self.background
+
 class Compose(object):
     def __init__(self, transform_list):
         super(Compose, self).__init__()

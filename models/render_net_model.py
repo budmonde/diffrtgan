@@ -49,8 +49,6 @@ class RenderNetModel(BaseModel):
         self.netG = networks.define_G(opt.input_nc, opt.texture_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        background = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
-
         self.render_config = RenderConfig(json.loads(open(opt.config_path).read()))
 
         render_kwargs = {
@@ -63,14 +61,20 @@ class RenderNetModel(BaseModel):
             "logger": None,
             "config": self.render_config,
         }
-        self.render_layer = NormalizedRenderLayer(render_kwargs)
-
         composit_kwargs = {
+            "background": np.array([[[0.0, 0.0, 0.0]]]),
+            "size": opt.fineSize,
+            "device": self.device,
+        }
+        self.render_layer = NormalizedRenderLayer(render_kwargs, composit_kwargs)
+
+        background = imread(opt.viz_composit_bkgd_path)
+        visdom_kwargs = {
             "background": background,
             "size": opt.fineSize,
             "device": self.device,
         }
-        self.composit_layer = NormalizedCompositLayer(**composit_kwargs)
+        self.composit_layer = NormalizedCompositLayer(**visdom_kwargs)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
