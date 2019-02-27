@@ -67,9 +67,9 @@ class GbufferDataset(BaseDataset):
         B = B_img * B_mask
         B = self.transform(B)
 
-        # Setup B_paths, B_name
+        # Setup B_paths, filename
         B_path = B_img_path
-        B_name = re.split('/|\.', B_img_path)[-2]
+        filename = re.split('/|\.', B_img_path)[-2]
 
         if self.opt.input_nc == 1:  # RGB to gray
             tmp = A[0, ...] * 0.299 + A[1, ...] * 0.587 + A[2, ...] * 0.114
@@ -79,7 +79,7 @@ class GbufferDataset(BaseDataset):
             tmp = B[0, ...] * 0.299 + B[1, ...] * 0.587 + B[2, ...] * 0.114
             B = tmp.unsqueeze(0)
         return {'A': A, 'B': B,
-                'B_paths': B_path, 'B_name': B_name}
+                'B_paths': B_path, 'filename': filename}
 
     def __len__(self):
         return self.img_size

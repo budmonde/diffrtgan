@@ -103,7 +103,7 @@ class GbufferModel(BaseModel):
     def set_input(self, input):
         self.real_A = input['A'].to(self.device)
         self.real_B = input['B'].to(self.device)
-        self.real_B_name = input['B_name']
+        self.filename = input['filename']
 
         # Gbuffer visuals
         self.real_A_position = self.real_A[:,:3,:,:]
@@ -112,7 +112,7 @@ class GbufferModel(BaseModel):
     def forward(self):
         self.fake_B_tex = self.netG(self.real_A)
         # Set camera parameters and pass to renderer
-        self.render_config.set_config(self.real_B_name[0])
+        self.render_config.set_config(self.filename[0])
         self.fake_B = self.render_layer(self.fake_B_tex)
 
         # Composit for visuals
