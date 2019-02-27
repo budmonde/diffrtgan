@@ -30,7 +30,10 @@ class RenderLogger(object):
         assert(self.latest_cfg_id != None)
         self.data[self.latest_cfg_id][key] = val
 
-    def get_data(self):
+    def get_cfg(self, cfg_id):
+        return self.data[cfg_id]
+
+    def get_all_cfgs(self):
         return self.data.copy()
 
 class RenderConfig(object):
@@ -138,7 +141,8 @@ class Render(object):
         def cam_position_sample(override = None, logger = None):
             if override == None:
                 d = 6.0 + random.uniform(1.0, 1.0) * 1.0
-                phi = random.uniform(0.24, 0.25) * math.pi * 2
+                #phi = random.uniform(0.24, 0.25) * math.pi * 2 # profile distritbution
+                phi = random.uniform(0.00, 1.00) * math.pi * 2 # azimuthal distribution
                 theta = math.acos(1 - random.uniform(0.95, 1.0))
                 x, y, z = math.cos(phi)*math.sin(theta)*d,\
                           math.cos(theta)*d + 0.75,\
