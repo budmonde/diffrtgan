@@ -1,4 +1,6 @@
 import itertools
+import json
+import os
 
 import numpy as np
 import torch
@@ -7,7 +9,9 @@ from . import networks
 from .base_model import BaseModel
 from util.image_pool import ImagePool
 from util.image_util import imread
+from util.render_util import RenderConfig
 from util.torch_util import NormalizedRenderLayer, NormalizedCompositLayer
+
 
 class RenderGANModel(BaseModel):
     def name(self):
@@ -15,10 +19,14 @@ class RenderGANModel(BaseModel):
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
-        parser.set_defaults(input_nc=4)
-        parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/hemi_proj', help='Path of mesh pool to render')
-        # TODO: fix image transform so that it looks at texture_nc for dim#
+        parser.set_defaults(input_nc=4, no_flip=True, loadSize=256, pool_size=0)
+        parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one_mtl', help='Path of mesh pool to render')
+        parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/rasters', help='Path of envmap pool to render')
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
+        parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')
+        parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
+
+        parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/transparency/transparency.png', help='Compositing background used for visualization of semi-transparent textures')
         return parser
 
     def initialize(self, opt):
@@ -27,8 +35,8 @@ class RenderGANModel(BaseModel):
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['D', 'G']
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        visual_names_tex = ['real_tex_A_show', 'real_tex_B_show', 'fake_tex_B_show']
-        visual_names_render = ['real_render_B', 'fake_render_B']
+        visual_names_tex = ['fake_B_tex_show']
+        visual_names_render = ['real_B', 'fake_B_render']
         self.visual_names = visual_names_tex + visual_names_render
 
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
@@ -37,20 +45,40 @@ class RenderGANModel(BaseModel):
         else:  # during test time, only load Gs
             self.model_names = ['G']
 
+        # define randomizer
+        self.inp_dims = (1, opt.input_nc, opt.fineSize, opt.fineSize)
+
         # load/define networks
         self.netG = networks.define_G(opt.input_nc, opt.texture_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        bkgd_color = (0.7, 0.0, 0.7)
-        #bkgd = torch.tensor(bkgd_color)\
-        #            .expand(opt.fineSize, opt.fineSize, len(bkgd_color))
-        bkgd = None
+        self.render_config = RenderConfig(json.loads(open(os.path.join(opt.dataroot, 'data.json')).read()))
 
-        vis_bkgd = torch.tensor(imread('./datasets/textures/transparency/transparency.png'), dtype=torch.float32)
+        render_kwargs = {
+            "meshes_path": opt.meshes_path,
+            "envmaps_path": opt.envmaps_path,
+            "out_sz": opt.fineSize,
+            "num_samples": opt.mc_subsampling,
+            "max_bounces": opt.mc_max_bounces,
+            "device": self.device,
+            "logger": None,
+            "config": self.render_config,
+        }
+        composit_kwargs = {
+            "background": np.array([[[0.0, 0.0, 0.0]]]),
+            "size": opt.fineSize,
+            "device": self.device,
+        }
+        self.render_layer = NormalizedRenderLayer(render_kwargs, composit_kwargs)
 
-        # TODO make num samples configurable
-        self.render_layer = NormalizedRenderLayer(opt.meshes_path, bkgd, opt.fineSize, 4, self.device)
-        self.composit_layer = NormalizedCompositLayer(vis_bkgd, opt.fineSize, self.device)
+        background = imread(opt.viz_composit_bkgd_path)
+
+        visdom_kwargs = {
+            "background": background,
+            "size": opt.fineSize,
+            "device": self.device,
+        }
+        self.composit_layer = NormalizedCompositLayer(**visdom_kwargs)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
@@ -58,7 +86,7 @@ class RenderGANModel(BaseModel):
                                             opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
-            self.fake_render_B_pool = ImagePool(opt.pool_size)
+            self.fake_B_render_pool = ImagePool(opt.pool_size)
             # define loss functions
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan).to(self.device)
             # initialize optimizers
@@ -69,20 +97,19 @@ class RenderGANModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
 
     def set_input(self, input):
-        self.real_tex_A = input['A'].to(self.device)
-        self.real_tex_B = input['B'].to(self.device)
-        self.real_render_B = self.render_layer(self.real_tex_B)
+        self.real_A = torch.tensor(np.random.uniform(-0.5, 0.5, self.inp_dims), dtype=torch.float32, device=self.device)
 
-        # Composit for visuals
-        self.real_tex_A_show = self.composit_layer(self.real_tex_A)
-        self.real_tex_B_show = self.composit_layer(self.real_tex_B)
+        self.real_B = input['B'].to(self.device)
+        self.filename = input['filename']
 
     def forward(self):
-        self.fake_tex_B = self.netG(self.real_tex_A)
-        self.fake_render_B = self.render_layer(self.fake_tex_B)
+        self.fake_B_tex = self.netG(self.real_A)
+        # Set camera parameters and pass to renderer
+        self.fake_B_id = self.render_config.set_config(self.filename[0])
+        self.fake_B_render = self.render_layer(self.fake_B_tex)
 
         # Composit for visuals
-        self.fake_tex_B_show = self.composit_layer(self.fake_tex_B)
+        self.fake_B_tex_show = self.composit_layer(self.fake_B_tex)
 
     def backward_D_basic(self, netD, real, fake):
         # Real
@@ -98,13 +125,13 @@ class RenderGANModel(BaseModel):
         return loss_D
 
     def backward_D(self):
-        fake_render_B = self.fake_render_B_pool.query(self.fake_render_B)
+        fake_B_render = self.fake_B_render_pool.query(self.fake_B_render)
         self.loss_D = self.backward_D_basic(
-                self.netD, self.real_render_B, fake_render_B)
+                self.netD, self.real_B, fake_B_render)
 
     def backward_G(self):
         # GAN loss D(G(A))
-        self.loss_G = self.criterionGAN(self.netD(self.fake_render_B), True)
+        self.loss_G = self.criterionGAN(self.netD(self.fake_B_render), True)
         self.loss_G.backward()
 
     def optimize_parameters(self):

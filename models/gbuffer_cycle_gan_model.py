@@ -1,5 +1,6 @@
 import itertools
 import json
+import os
 
 import numpy as np
 import torch
@@ -29,7 +30,6 @@ class GbufferCycleGANModel(BaseModel):
         # Render Config
         parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one_mtl', help='Path of mesh pool to render')
         parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/rasters', help='Path of envmap pool to render')
-        parser.add_argument('--config_path', type=str, default='./datasets/renders/data.json', help='Path to camera configs for target images')
         parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')
         parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
 
@@ -68,10 +68,8 @@ class GbufferCycleGANModel(BaseModel):
         self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        render_background = None
-        visdom_background = torch.tensor(imread(opt.viz_composit_bkgd_path), dtype=torch.float32)
 
-        self.render_config = RenderConfig(json.loads(open(opt.config_path).read()))
+        self.render_config = RenderConfig(json.loads(open(os.path.join(opt.dataroot, 'data.json')).read()))
 
         render_kwargs = {
             "meshes_path": opt.meshes_path,
@@ -84,19 +82,21 @@ class GbufferCycleGANModel(BaseModel):
             "config": self.render_config,
         }
         composit_kwargs = {
-            "background": render_background,
+            "background": np.array([[[0.0, 0.0, 0.0]]]),
             "size": opt.fineSize,
             "device": self.device,
         }
         self.render_fake = NormalizedRenderLayer(render_kwargs, composit_kwargs)
         self.render_rec = NormalizedRenderLayer(render_kwargs, composit_kwargs)
 
-        visdom_composit_kwargs = {
-            "background": render_background,
+        background = imread(opt.viz_composit_bkgd_path)
+
+        visdom_kwargs = {
+            "background": background,
             "size": opt.fineSize,
             "device": self.device,
         }
-        self.composit_layer = NormalizedCompositLayer(**visdom_composit_kwargs)
+        self.composit_layer = NormalizedCompositLayer(**visdom_kwargs)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
