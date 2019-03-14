@@ -65,7 +65,7 @@ with open(os.path.join(out_path, "data.bak"), "a+") as backupfile:
         imwrite(out[:, :,  4: 7], os.path.join(out_path, "position", "{}.png".format(key)))
         imwrite(out[:, :,  7:10], os.path.join(out_path, "normal",   "{}.png".format(key)))
         imwrite(out[:, :, 10:13], os.path.join(out_path, "albedo",   "{}.png".format(key)))
-        json.dump(render_logger[key], backupfile)
+        json.dump({key: render_logger[key]}, backupfile)
 
 with open(os.path.join(out_path, "data.json"), "w") as metafile:
     json.dump(render_logger.get_all(), metafile)
