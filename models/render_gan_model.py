@@ -61,7 +61,6 @@ class RenderGANModel(BaseModel):
             "num_samples": opt.mc_subsampling,
             "max_bounces": opt.mc_max_bounces,
             "device": self.device,
-            "logger": None,
             "config": self.render_config,
         }
         composit_kwargs = {

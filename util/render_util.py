@@ -14,46 +14,88 @@ from .image_util import imread
 
 
 class RenderLogger(object):
-    def __init__(self, data = None):
+    def __init__(self, data = None, write = True):
         super(RenderLogger, self).__init__()
-        if data == None:
-            self.data = dict()
-        else:
-            self.data = data
-        self.latest_cfg_id = None
+        self.data = dict() if data is None else data
+        self.write = write
+        self.active_cfg_id = None
 
-    def new(self, cfg_id):
-        self.latest_cfg_id = cfg_id
+    def init(self):
+        if self.write == False:
+            pass
+        cfg_id = hashlib.sha256(str(random.randint(0, 100000000)).encode('utf-8')).hexdigest()[:6]
+        while cfg_id in self.data:
+            cfg_id = hashlib.sha256(str(random.randint(0, 100000000)).encode('utf-8')).hexdigest()[:6]
+        self.active_cfg_id = cfg_id
         self.data[cfg_id] = dict()
 
     def log(self, key, val):
-        assert(self.latest_cfg_id != None)
-        self.data[self.latest_cfg_id][key] = val
+        if self.write == False:
+            pass
+        assert(self.active_cfg_id != None)
+        self.data[self.active_cfg_id][key] = val
 
-    def get_cfg(self, cfg_id):
+    def __getitem__(self, cfg_id):
         return self.data[cfg_id]
 
-    def get_all_cfgs(self):
+    def get_active_id(self):
+        return self.active_cfg_id
+
+    def get_all(self):
         return self.data.copy()
 
 class RenderConfig(object):
-    def __init__(self, data):
+    def __init__(self, data=None):
         super(RenderConfig, self).__init__()
         self.data = data
 
     def set_config(self, cfg_id):
+        # TODO: assert that this key exists in the data
         self.cfg_id = cfg_id
 
-    def get_val(self, key):
+    def __getitem__(self, key):
+        if self.data == None:
+            return None
+        if self.cfg_id not in self.data:
+            return None
+        if key not in self.data[self.cfg_id]:
+            return None
         return self.data[self.cfg_id][key]
 
+class ConfigSampler(object):
+    def __init__(self, config, logger):
+        super(ConfigSampler, self).__init__()
+        self.config = config
+        self.logger = logger
+        self.samplers = dict()
+
+    def add(self, fn):
+        self.samplers[fn.__name__] = fn
+
+    def __call__(self, key):
+        val = self.samplers[key]() if self.config[key] == None else self.config[key]
+        if self.logger != None:
+            self.logger.log(key, val)
+        return val
+
 class Render(object):
-    def __init__(self, meshes_path, envmaps_path, out_sz, num_samples, max_bounces, device, channels = ['radiance', 'alpha'], logger = None, config = None):
+    def __init__(
+            self,
+            meshes_path,
+            envmaps_path,
+            out_sz,
+            num_samples,
+            max_bounces,
+            device,
+            channels = ['radiance', 'alpha'],
+            logger = RenderLogger(write = False),
+            config = RenderConfig()):
         super(Render, self).__init__()
         # Image write logger and scene config overrider
+        # TODO: Combine these three things(?)
         self.logger = logger
         self.config = config
-        self.sampler = dict()
+        self.sampler = ConfigSampler(self.config, self.logger)
 
         # Redner GPU Configs
         self.device = device
@@ -69,36 +111,7 @@ class Render(object):
         for ch in channels:
             self.channels.append(getattr(redner.channels, ch))
 
-        def get_children_path_list(path):
-            return [os.path.join(path, f) for f in os.listdir(path)]
-
-        # Load Car Meshes
-        def get_mesh_geometry(mesh_path):
-            mtl_map, mesh_list, _ = pyredner.load_obj(mesh_path)
-            mtl_id_map = dict()
-            materials = list()
-            cnt = 0
-            for k, v in mtl_map.items():
-                mtl_id_map[k] = cnt
-                cnt += 1
-                materials.append(v)
-            # TODO: hardcoded. fix to make it load from a config file
-            learn_tex_idx = mtl_id_map['car_paint']
-            shapes = list()
-            for mtl_name, mesh in mesh_list:
-                shapes.append(pyredner.Shape(
-                    vertices = mesh.vertices,
-                    indices = mesh.indices,
-                    uvs = mesh.uvs,
-                    normals = mesh.normals,
-                    material_id = mtl_id_map[mtl_name]
-                ))
-            return {
-                'materials': materials,
-                'shapes': shapes,
-                'learn_tex_idx': learn_tex_idx,
-            }
-
+        # Load Meshes
         self.meshes = dict(map(
             lambda mesh_path: (mesh_path, get_mesh_geometry(mesh_path)),
             list(filter(
@@ -107,114 +120,54 @@ class Render(object):
             ))
         ))
 
-        def geo_mesh_path_sample(override = None, logger = None):
-            if override == None:
-                key = random.choice(list(self.meshes.keys()))
-            else:
-                key = override
-            if logger != None:
-                logger.log('geo_mesh_path', key)
-            return key
-        self.sampler['geo_mesh_path'] = geo_mesh_path_sample
-
-        def get_envmap(envmap_path):
-            return pyredner.EnvironmentMap(torch.tensor(imread(envmap_path),\
-                dtype=torch.float32, device=self.device))
+        def geo_mesh_path():
+            return random.choice(list(self.meshes.keys()))
+        self.sampler.add(geo_mesh_path)
 
         # Load Environment Maps
         self.envmaps = dict(map(
-            lambda envmap_path: (envmap_path, get_envmap(envmap_path)),
+            lambda envmap_path: (envmap_path, get_envmap(envmap_path, device)),
             get_children_path_list(envmaps_path)
         ))
 
-        def geo_envmap_path_sample(override = None, logger = None):
-            if override == None:
-                key = random.choice(list(self.envmaps.keys()))
-            else:
-                key = override
-            if logger != None:
-                logger.log('geo_envmap_path', key)
-            return key
-        self.sampler['geo_envmap_path'] = geo_envmap_path_sample
+        def tex_envmap_path():
+            return random.choice(list(self.envmaps.keys()))
+        self.sampler.add(tex_envmap_path)
 
-        # Camera Config Sampling
-        def cam_position_sample(override = None, logger = None):
-            if override == None:
-                d = 6.0 + random.uniform(1.0, 1.0) * 1.0
-                #phi = random.uniform(0.24, 0.25) * math.pi * 2 # profile distritbution
-                phi = random.uniform(0.00, 1.00) * math.pi * 2 # azimuthal distribution
-                theta = math.acos(1 - random.uniform(0.95, 1.0))
-                x, y, z = math.cos(phi)*math.sin(theta)*d,\
-                          math.cos(theta)*d + 0.75,\
-                          math.sin(phi)*math.sin(theta)*d
-                out = (x, y, z)
-            else:
-                out = override
-            #out = (0.0, 0.75, random.choice([-8.0, 8.0]))
-            if logger != None:
-                logger.log('cam_position', out)
-            return out
-        def cam_look_at_sample(override = None, logger = None):
-            if override == None:
-                x, y, z = random.uniform(-0.1, 0.1),\
-                          random.uniform(-0.1, 0.1) + 0.75,\
-                          random.uniform(-0.1, 0.1)
-                out = (x, y, z)
-            else:
-                out = override
-            #out = (0.0, 0.75, 0.0)
-            if logger != None:
-                logger.log('cam_look_at', out)
-            return out
-        def cam_up_sample(override = None, logger = None):
-            #x, y, z = random.uniform(-0.2, 0.2),\
-            #          1.0,\
-            #          random.uniform(-0.2, 0.2)
-            if override == None:
-                out =  (0.0, 1.0, 0.0)
-            else:
-                out = override
-            if logger != None:
-                logger.log('cam_up', out)
-            return out
-        def render_seed_sample(override = None, logger = None):
-            if override == None:
-                out = random.randint(0, 255)
-            else:
-                out = override
-            if logger != None:
-                logger.log('render_seed', out)
-            return out
-        self.sampler['cam_position'] = cam_position_sample
-        self.sampler['cam_look_at'] = cam_look_at_sample
-        self.sampler['cam_up'] = cam_up_sample
-        self.sampler['render_seed'] = render_seed_sample
+        def geo_rotation():
+            azim = random.uniform(0.24, 0.26) * math.pi * 2
+            elev = math.acos(1 - random.uniform(0.00, 0.50))
+            ornt = random.uniform(0.00, 0.00)
+            return (azim, elev, ornt)
+        self.sampler.add(geo_rotation)
 
-    def __call__(self, input, name = None):
-        # Init Logger entry
-        if self.logger != None:
-            if name == None:
-                name = hashlib.sha256(str(random.randint(0, 10000)).encode('utf-8')).hexdigest()[:6]
-            self.logger.new(name)
+        def geo_translation():
+            x, y, z = random.uniform(-0.1, 0.1),\
+                      random.uniform(-0.1, 0.1) - 0.75,\
+                      random.uniform(-0.1, 0.1)
+            return (x, y, z)
+        self.sampler.add(geo_translation)
 
-        # Init Configurator
-        if self.config == None:
-            mesh_path = self.sampler['geo_mesh_path'](logger = self.logger)
-            envmap_path = self.sampler['geo_envmap_path'](logger = self.logger)
-            position = self.sampler['cam_position'](logger = self.logger)
-            look_at = self.sampler['cam_look_at'](logger = self.logger)
-            up = self.sampler['cam_up'](logger = self.logger)
-            seed = self.sampler['render_seed'](logger = self.logger)
-        else:
-            mesh_path = self.sampler['geo_mesh_path'](self.config.get_val('geo_mesh_path'), logger = self.logger)
-            envmap_path = self.sampler['geo_envmap_path'](self.config.get_val('geo_envmap_path'), logger = self.logger)
-            position = self.sampler['cam_position'](self.config.get_val('cam_position'), logger = self.logger)
-            look_at = self.sampler['cam_look_at'](self.config.get_val('cam_look_at'), logger = self.logger)
-            up = self.sampler['cam_up'](self.config.get_val('cam_up'), logger = self.logger)
-            seed = self.sampler['render_seed'](self.config.get_val('render_seed'), logger = self.logger)
+        def geo_distance():
+            return 6.0 + random.uniform(1.0, 1.0) * 1.0
+        self.sampler.add(geo_distance)
 
-        # Sample car_mesh Choice
-        car_mesh = self.meshes[mesh_path]
+        def render_seed():
+            return random.randint(0, 255)
+        self.sampler.add(render_seed)
+
+    def __call__(self, input):
+        # Init Config and Logger entry
+        self.logger.init()
+        geo_mesh_path   = self.sampler('geo_mesh_path')
+        tex_envmap_path = self.sampler('tex_envmap_path')
+        geo_rotation    = self.sampler('geo_rotation')
+        geo_translation = self.sampler('geo_translation')
+        geo_distance    = self.sampler('geo_distance')
+        render_seed     = self.sampler('render_seed')
+
+        # Sample car_mesh choice
+        car_mesh = self.meshes[geo_mesh_path]
         shapes = car_mesh['shapes']
         materials = car_mesh['materials']
 
@@ -223,7 +176,7 @@ class Render(object):
         assert(input.device == self.device)
         assert(input.shape[-1] == 3 or input.shape[-1] == 4)
 
-        # Alpha composit if input is semi-transparent
+        # Alpha composit learneable material if input is semi-transparent
         if input.shape[-1] == 4:
             diffuse_background_color = (0.8, 0.8, 0.8)
             specular_background_color = (0.8, 0.8, 0.8)
@@ -240,17 +193,17 @@ class Render(object):
         materials[car_mesh['learn_tex_idx']] = pyredner.Material(
             diffuse_reflectance = diffuse_reflectance,
             specular_reflectance = specular_reflectance,
-            roughness = torch.tensor([0.05], device=self.device)
-        )
+            roughness = torch.tensor([0.05], device=self.device))
 
         # Sample environment map choice
-        envmap = self.envmaps[envmap_path]
+        envmap = self.envmaps[tex_envmap_path]
 
         # Sample Camera Params
+        position, look_at, up = camera_parameters(geo_rotation, geo_translation, geo_distance)
         camera = pyredner.Camera(
-            position     = torch.tensor(position),
-            look_at      = torch.tensor(look_at),
-            up           = torch.tensor(up),
+            position     = torch.tensor(position, dtype=torch.float32),
+            look_at      = torch.tensor(look_at, dtype=torch.float32),
+            up           = torch.tensor(up, dtype=torch.float32),
             fov          = torch.tensor([45.0]),
             clip_near    = 1e-2,
             resolution   = self.resolution,
@@ -270,7 +223,70 @@ class Render(object):
             num_samples = self.num_samples,
             max_bounces = self.max_bounces,
             channels = self.channels)
-        out = pyredner.RenderFunction.apply(seed, *args)
+        out = pyredner.RenderFunction.apply(render_seed, *args)
 
         return out
 
+##############################
+###### HELPER FUNCTIONS ######
+##############################
+
+# List of Child paths
+def get_children_path_list(path):
+    return [os.path.join(path, f) for f in os.listdir(path)]
+
+# Car Mesh Loader
+def get_mesh_geometry(mesh_path):
+    mtl_map, mesh_list, _ = pyredner.load_obj(mesh_path)
+    mtl_id_map = dict()
+    materials = list()
+    cnt = 0
+    for k, v in mtl_map.items():
+        mtl_id_map[k] = cnt
+        cnt += 1
+        materials.append(v)
+    # TODO: hardcoded. fix to make it load from a config file
+    learn_tex_idx = mtl_id_map['car_paint']
+    shapes = list()
+    for mtl_name, mesh in mesh_list:
+        shapes.append(pyredner.Shape(
+            vertices = mesh.vertices,
+            indices = mesh.indices,
+            uvs = mesh.uvs,
+            normals = mesh.normals,
+            material_id = mtl_id_map[mtl_name]
+        ))
+    return {
+        'materials': materials,
+        'shapes': shapes,
+        'learn_tex_idx': learn_tex_idx,
+    }
+
+# Envmap Loader
+def get_envmap(envmap_path, device):
+    return pyredner.EnvironmentMap(torch.tensor(imread(envmap_path),\
+        dtype=torch.float32, device=device))
+
+# Object transformation -> Camera Transformation
+def camera_parameters(euler_angles, translation, distance, up=(0.0, 1.0, 0.0)):
+    # Calculate Camera Position
+    cam_azim = -euler_angles[0]
+    cam_elev = math.pi/2 - euler_angles[1]
+    cam_pos_hat = np.array([
+        math.cos(cam_azim)*math.sin(cam_elev),
+        math.cos(cam_elev),
+        math.sin(cam_azim)*math.sin(cam_elev)
+    ])
+    cam_position = cam_pos_hat * distance - translation
+
+    # Calculate Camera Look-at
+    cam_dir = -cam_pos_hat
+    cam_look_at = cam_position + cam_dir
+
+    # Calculate Camera Up direction
+    up = np.array(up)
+    axis = -cam_pos_hat
+    cam_up = np.dot(up, axis) * axis +\
+             np.cross(axis, up) * math.sin(euler_angles[2]) +\
+             np.cross(np.cross(axis, up), axis) * math.cos(euler_angles[2])
+    return (cam_position, cam_look_at, cam_up)

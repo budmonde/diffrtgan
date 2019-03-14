@@ -1,9 +1,9 @@
 import argparse
 from datetime import datetime
-import hashlib
+import json
 import os
 import random
-import json
+import time
 
 import torch
 
@@ -20,8 +20,8 @@ parser.add_argument('--texture_path', type=str, default="./datasets/textures/che
 # Render config args
 parser.add_argument('--fineSize', type=int, default=256)
 parser.add_argument('--num_samples', type=int, default=4)
-parser.add_argument('--max_bounces', type=int, default=2)
-parser.add_argument('--distribution', type=str, default="profile")
+parser.add_argument('--max_bounces', type=int, default=1)
+parser.add_argument('--label', type=str, default="debug")
 # Output args
 parser.add_argument('--num_imgs', type=int, default=1000)
 parser.add_argument('--root_path', type=str, default="./datasets/renders/")
@@ -40,7 +40,7 @@ channels = [
 ]
 now = datetime.now()
 now_string = "{}-{}_{}-{}".format(now.month, now.day, now.hour, now.minute)
-subdir_name = "res{}mc{}_{}_{}".format(opt.fineSize, opt.num_samples, opt.distribution, now_string)
+subdir_name = "res{}mc{}_{}_{}".format(opt.fineSize, opt.num_samples, opt.label, now_string)
 out_path = os.path.join(opt.root_path, subdir_name)
 if not os.path.exists(out_path):
     os.makedirs(out_path)
@@ -56,15 +56,16 @@ renderer = Render(
 
 with open(os.path.join(out_path, "data.bak"), "a+") as backupfile:
     for i in range(opt.num_imgs):
-        name = hashlib.sha256(str(random.randint(0, 100000000)).encode('utf-8')).hexdigest()[:6]
-        print("Generating Image: #\t{} -- {}".format(i, name))
-        out = renderer(texture, name)
-        imwrite(out[:, :,   : 3], os.path.join(out_path, "img",      "{}.png".format(name)))
-        imwrite(out[:, :,  3: 4], os.path.join(out_path, "mask",     "{}.png".format(name)))
-        imwrite(out[:, :,  4: 7], os.path.join(out_path, "position", "{}.png".format(name)))
-        imwrite(out[:, :,  7:10], os.path.join(out_path, "normal",   "{}.png".format(name)))
-        imwrite(out[:, :, 10:13], os.path.join(out_path, "albedo",   "{}.png".format(name)))
-        json.dump(render_logger.get_cfg(name), backupfile)
+        iter_start_time = time.time()
+        out = renderer(texture)
+        key = render_logger.get_active_id()
+        print("Generated Image: #\t{} -- {} in {}".format(i, key, time.time() - iter_start_time))
+        imwrite(out[:, :,   : 3], os.path.join(out_path, "img",      "{}.png".format(key)))
+        imwrite(out[:, :,  3: 4], os.path.join(out_path, "mask",     "{}.png".format(key)))
+        imwrite(out[:, :,  4: 7], os.path.join(out_path, "position", "{}.png".format(key)))
+        imwrite(out[:, :,  7:10], os.path.join(out_path, "normal",   "{}.png".format(key)))
+        imwrite(out[:, :, 10:13], os.path.join(out_path, "albedo",   "{}.png".format(key)))
+        json.dump(render_logger[key], backupfile)
 
 with open(os.path.join(out_path, "data.json"), "w") as metafile:
-    json.dump(render_logger.get_all_cfgs(), metafile)
+    json.dump(render_logger.get_all(), metafile)
