@@ -29,6 +29,14 @@ class CompositLayer(nn.Module):
     def forward(self, input):
         return self.transform(input)
 
+class GaussianNoiseLayer(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super(GaussianNoiseLayer, self).__init__()
+        self.transform = GaussianNoise(*args, **kwargs)
+
+    def forward(self, input):
+        return self.transform(input)
+
 class HWC2CHWLayer(nn.Module):
     def __init__(self, *args, **kwargs):
         super(HWC2CHWLayer, self).__init__()

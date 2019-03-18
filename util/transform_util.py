@@ -16,6 +16,19 @@ class Debug(object):
         print(input.shape)
         return input
 
+class GaussianNoise(object):
+    def __init__(self, device, sigma=0.1):
+        super(GaussianNoise, self).__init__()
+        self.sigma = sigma
+        self.noise = torch.tensor(0.0, dtype=torch.float32, device=device)
+
+    def __call__(self, input):
+        if self.sigma != 0:
+            scale = self.sigma * input.detach()
+            sampled_noise = self.noise.repeat(*input.size()).normal_() * scale
+            input = input + sampled_noise
+        return input
+
 class NP2PIL(object):
     def __init__(self):
         super(NP2PIL, self).__init__()
