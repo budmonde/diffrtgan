@@ -13,6 +13,10 @@ import pyredner
 from .image_util import imread
 
 
+def gen_hash(length):
+    return hashlib.sha256(str(random.randint(0, 1e10))\
+                  .encode('utf-8')).hexdigest()[:length]
+
 class RenderLogger(object):
     def __init__(self, data = None, write = True):
         super(RenderLogger, self).__init__()
@@ -23,9 +27,9 @@ class RenderLogger(object):
     def init(self):
         if self.write == False:
             pass
-        cfg_id = hashlib.sha256(str(random.randint(0, 100000000)).encode('utf-8')).hexdigest()[:6]
+        cfg_id = gen_hash(6)
         while cfg_id in self.data:
-            cfg_id = hashlib.sha256(str(random.randint(0, 100000000)).encode('utf-8')).hexdigest()[:6]
+            cfg_id = gen_hash(6)
         self.active_cfg_id = cfg_id
         self.data[cfg_id] = dict()
 
@@ -68,14 +72,26 @@ class ConfigSampler(object):
         self.config = config
         self.logger = logger
         self.samplers = dict()
+        self.noises = dict()
 
     def add(self, fn):
         self.samplers[fn.__name__] = fn
 
+    def add_noise(self, fn):
+        self.noises[fn.__name__.strip('_noise')] = fn
+
     def __call__(self, key):
-        val = self.samplers[key]() if self.config[key] == None else self.config[key]
+        if self.config[key] == None:
+            val = self.samplers[key]()
+        else:
+            val = self.config[key]
+            if key in self.noises:
+                val += self.noises[key]()
         if self.logger != None:
-            self.logger.log(key, val)
+            to_log = val
+            if isinstance(val, np.ndarray):
+                to_log = val.tolist()
+            self.logger.log(key, to_log)
         return val
 
 class Render(object):
@@ -135,22 +151,37 @@ class Render(object):
         self.sampler.add(tex_envmap_path)
 
         def geo_rotation():
-            azim = random.uniform(0.24, 0.26) * math.pi * 2
-            elev = math.acos(1 - random.uniform(0.00, 0.50))
+            azim = random.uniform(0.00, 0.50) * math.pi * 2
+            elev = math.acos(1 - random.uniform(0.00, 0.00))
             ornt = random.uniform(0.00, 0.00)
-            return (azim, elev, ornt)
+            return np.array([azim, elev, ornt])
         self.sampler.add(geo_rotation)
+        def geo_rotation_noise():
+            azim = random.uniform(-0.01, 0.01) * math.pi * 2
+            elev = math.acos(1 - random.uniform(-0.01, 0.01))
+            ornt = random.uniform(0.00, 0.00)
+            return np.array([azim, elev, ornt])
+        self.sampler.add_noise(geo_rotation_noise)
 
         def geo_translation():
             x, y, z = random.uniform(-0.1, 0.1),\
                       random.uniform(-0.1, 0.1) - 0.75,\
                       random.uniform(-0.1, 0.1)
-            return (x, y, z)
+            return np.array([x, y, z])
         self.sampler.add(geo_translation)
+        def geo_translation_noise():
+            x, y, z = random.uniform(-0.01, 0.01),\
+                      random.uniform(-0.01, 0.01),\
+                      random.uniform(-0.01, 0.01)
+            return np.array([x, y, z])
+        self.sampler.add_noise(geo_translation_noise)
 
         def geo_distance():
             return 6.0 + random.uniform(1.0, 1.0) * 1.0
         self.sampler.add(geo_distance)
+        def geo_distance_noise():
+            return random.uniform(-0.1, 0.1) * 1.0
+        self.sampler.add_noise(geo_distance_noise)
 
         def render_seed():
             return random.randint(0, 255)
