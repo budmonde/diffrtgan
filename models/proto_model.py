@@ -10,7 +10,7 @@ from .base_model import BaseModel
 from util.image_pool import ImagePool
 from util.image_util import imread
 from util.render_util import RenderConfig
-from util.torch_util import NormalizedRenderLayer, NormalizedCompositLayer, GaussianNoiseLayer
+from util.torch_util import NormalizedRenderLayer, NormalizedCompositLayer
 
 
 class ProtoModel(BaseModel):
@@ -72,14 +72,20 @@ class ProtoModel(BaseModel):
             "device": self.device,
             "config": self.render_config,
         }
+        noise_kwargs = {
+            "sigma": opt.gaussian_sigma,
+            "device": self.device,
+        }
         composit_kwargs = {
             "background": np.array([[[0.0, 0.0, 0.0]]]),
             "size": opt.fineSize,
             "device": self.device,
         }
-        self.render_layer = NormalizedRenderLayer(render_kwargs, composit_kwargs)
-
-        self.noise_layer = GaussianNoiseLayer(self.device, sigma=0.5)
+        self.render_layer = NormalizedRenderLayer(
+            render_kwargs,
+            noise_kwargs,
+            composit_kwargs
+        )
 
         background = imread(opt.viz_composit_bkgd_path)
 
@@ -109,7 +115,6 @@ class ProtoModel(BaseModel):
     def set_input(self, input):
         self.real_A = input['A'].to(self.device)
         self.real_B = input['B'].to(self.device)
-        self.real_B = self.noise_layer(self.real_B)
         self.filename = input['filename']
 
     def forward(self):
@@ -117,7 +122,6 @@ class ProtoModel(BaseModel):
         # Set camera parameters and pass to renderer
         self.render_config.set_config(self.filename[0])
         self.fake_B = self.render_layer(self.fake_B_tex)
-        self.fake_B = self.noise_layer(self.fake_B)
 
         # Composit for visuals
         self.fake_B_tex_show = self.composit_layer(self.fake_B_tex)

@@ -8,12 +8,14 @@ import torch
 
 from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
-from util.image_util import imread
+from util.image_util import imread, imwrite
+from util.transform_util import GaussianNoiseNP
 
 
 class GbufferDataset(BaseDataset):
     @staticmethod
     def modify_commandline_options(parser, is_train):
+        parser.add_argument('--gaussian_sigma', type=float, default=0.5, help='STD for Gaussian noise to applied on dataset')
         return parser
 
     def initialize(self, opt):
@@ -44,6 +46,7 @@ class GbufferDataset(BaseDataset):
         assert(self.mask_size == self.position_size)
         assert(self.position_size == self.normal_size)
 
+        self.noise = GaussianNoiseNP(opt.gaussian_sigma)
         self.transform = get_transform(opt)
 
     def __getitem__(self, index):
@@ -66,6 +69,8 @@ class GbufferDataset(BaseDataset):
         # Setup B
         B_img = imread(B_img_path)
         B_mask = imread(B_mask_path)
+
+        B_img = self.noise(B_img)
 
         B = B_img * B_mask
         B = self.transform(B)

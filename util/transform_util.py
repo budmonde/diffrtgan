@@ -17,7 +17,9 @@ class Debug(object):
         return input
 
 class GaussianNoise(object):
-    def __init__(self, device, sigma=0.1):
+    # NOTE: Assumes input is HWC Formatted Image
+    #       If input has 4 channels, it will ignore the alpha channel
+    def __init__(self, sigma, device):
         super(GaussianNoise, self).__init__()
         self.sigma = sigma
         self.noise = torch.tensor(0.0, dtype=torch.float32, device=device)
@@ -25,9 +27,23 @@ class GaussianNoise(object):
     def __call__(self, input):
         if self.sigma != 0:
             scale = self.sigma * input.detach()
+            if input.size()[-1] == 4:
+                scale[:,:,-1] *= 0
             sampled_noise = self.noise.repeat(*input.size()).normal_() * scale
             input = input + sampled_noise
         return input
+
+class GaussianNoiseNP(object):
+    # TODO: For some reason this one looks a little brighter than the torch version(?)
+    def __init__(self, sigma):
+        super(GaussianNoiseNP, self).__init__()
+        self.sigma = sigma
+
+    def __call__(self, input):
+        scale = self.sigma * input
+        sampled_noise = np.random.normal(np.zeros(input.shape), 1.0) * scale
+        out = input + sampled_noise
+        return out
 
 class NP2PIL(object):
     def __init__(self):
