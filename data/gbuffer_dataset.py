@@ -1,5 +1,6 @@
 import random
 import re
+import math
 import os.path
 
 import numpy as np
@@ -52,13 +53,15 @@ class GbufferDataset(BaseDataset):
         A_normal_path = self.normal_paths[index % self.normal_size]
 
         # Setup A
-        A_position = imread(A_position_path)
-        A_normal = imread(A_normal_path)
+        #A_position = imread(A_position_path)
+        #A_normal = imread(A_normal_path)
 
-        A_position = self.transform(A_position)
-        A_normal = self.transform(A_normal)
+        #A_position = self.transform(A_position)
+        #A_normal = self.transform(A_normal)
 
-        A = torch.cat([A_position, A_normal], dim=0)
+        #A = torch.cat([A_position, A_normal], dim=0)
+        A = generate_spherical_pos(self.opt.fineSize)
+        A = self.transform(A)
 
         # Setup B
         B_img = imread(B_img_path)
@@ -86,3 +89,14 @@ class GbufferDataset(BaseDataset):
 
     def name(self):
         return 'GbufferDataset'
+
+def generate_spherical_pos(size):
+    one = np.ones(size)[:,np.newaxis]
+    samples = np.linspace(0, math.pi, size)[:,np.newaxis]
+    cos = np.cos(samples)
+    sin = np.sin(samples)
+    out = np.zeros((size, size, 3))
+    out[:,:,0] = cos @ np.transpose(one)
+    out[:,:,1] = sin @ np.transpose(sin)
+    out[:,:,2] = sin @ np.transpose(cos)
+    return out

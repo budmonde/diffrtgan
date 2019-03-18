@@ -24,7 +24,7 @@ class GbufferModel(BaseModel):
                 no_flip=True,
                 no_dropout=True,
                 display_ncols=5,
-                input_nc=6,
+                input_nc=3,
                 loadSize=256,
         )
         # Render Config
@@ -47,7 +47,7 @@ class GbufferModel(BaseModel):
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['D', 'G']
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        visual_names_A = ['real_A_position', 'real_A_normal']
+        visual_names_A = ['real_A']
         visual_names_B = ['fake_B_tex_show', 'real_B', 'fake_B']
         self.visual_names = visual_names_A + visual_names_B
 
@@ -70,7 +70,6 @@ class GbufferModel(BaseModel):
             "num_samples": opt.mc_subsampling,
             "max_bounces": opt.mc_max_bounces,
             "device": self.device,
-            "logger": None,
             "config": self.render_config,
         }
         composit_kwargs = {
@@ -109,10 +108,6 @@ class GbufferModel(BaseModel):
         self.real_A = input['A'].to(self.device)
         self.real_B = input['B'].to(self.device)
         self.filename = input['filename']
-
-        # Gbuffer visuals
-        self.real_A_position = self.real_A[:,:3,:,:]
-        self.real_A_normal = self.real_A[:,3:,:,:]
 
     def forward(self):
         self.fake_B_tex = self.netG(self.real_A)
