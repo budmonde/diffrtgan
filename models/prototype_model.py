@@ -13,9 +13,9 @@ from util.render_util import RenderConfig
 from util.torch_util import NormalizedRenderLayer, NormalizedCompositLayer
 
 
-class GbufferCycleGANModel(BaseModel):
+class PrototypeModel(BaseModel):
     def name(self):
-        return 'GbufferCycleGANModel'
+        return 'PrototypeModel'
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
