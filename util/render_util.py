@@ -1,7 +1,7 @@
+import hashlib
 import os
 import math
 import random
-import hashlib
 
 import numpy as np
 
@@ -78,7 +78,8 @@ class ConfigSampler(object):
         self.samplers[fn.__name__] = fn
 
     def add_noise(self, fn):
-        self.noises[fn.__name__.strip('_noise')] = fn
+        fn_name = fn.__name__.replace('_noise', '')
+        self.noises[fn_name] = fn
 
     def __call__(self, key):
         if self.config[key] == None:
