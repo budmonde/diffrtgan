@@ -72,12 +72,20 @@ class StableModel(BaseModel):
             "device": self.device,
             "config": self.render_config,
         }
+        noise_kwargs = {
+            "sigma": opt.gaussian_sigma,
+            "device": self.device,
+        }
         composit_kwargs = {
             "background": np.array([[[0.0, 0.0, 0.0]]]),
             "size": opt.fineSize,
             "device": self.device,
         }
-        self.render_layer = NormalizedRenderLayer(render_kwargs, composit_kwargs)
+        self.render_layer = NormalizedRenderLayer(
+            render_kwargs,
+            noise_kwargs,
+            composit_kwargs
+        )
 
         background = imread(opt.viz_composit_bkgd_path)
 
