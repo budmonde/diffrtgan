@@ -158,9 +158,9 @@ class Render(object):
             return np.array([azim, elev, ornt])
         self.sampler.add(geo_rotation)
         def geo_rotation_noise():
-            azim = random.uniform(-0.01, 0.01) * math.pi * 2
-            elev = math.acos(1 - random.uniform(-0.01, 0.01))
-            ornt = random.uniform(0.00, 0.00)
+            azim = random.uniform(-0.00, 0.05) * math.pi * 2
+            elev = random.uniform(-0.00, 0.05) * math.pi * 2
+            ornt = random.uniform(0.00, 0.05)
             return np.array([azim, elev, ornt])
         self.sampler.add_noise(geo_rotation_noise)
 
