@@ -81,29 +81,7 @@ class NormalizedCompositLayer(nn.Module):
     def __init__(self, *args, **kwargs):
         super(NormalizedCompositLayer, self).__init__()
         self.model = nn.Sequential(
-                StripBatchDimLayer(),
-                NormalizeLayer(-1.0, 2.0),
-                CHW2HWCLayer(),
                 CompositLayer(*args, **kwargs),
-                HWC2CHWLayer(),
-                NormalizeLayer(0.5, 0.5),
-                AddBatchDimLayer(),
-        )
-
-    def forward(self, input):
-        out = self.model.forward(input)
-        return out
-
-class NormalizedRenderLayer(nn.Module):
-    def __init__(self, render_kwargs, noise_kwargs, composit_kwargs):
-        super(NormalizedRenderLayer, self).__init__()
-        self.model = nn.Sequential(
-                StripBatchDimLayer(),
-                NormalizeLayer(-1.0, 2.0),
-                CHW2HWCLayer(),
-                RenderLayer(**render_kwargs),
-                GaussianNoiseLayer(**noise_kwargs),
-                CompositLayer(**composit_kwargs),
                 HWC2CHWLayer(),
                 NormalizeLayer(0.5, 0.5),
                 AddBatchDimLayer(),

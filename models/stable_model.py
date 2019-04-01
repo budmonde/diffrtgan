@@ -4,13 +4,14 @@ import os
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 from . import networks
 from .base_model import BaseModel
 from util.image_pool import ImagePool
 from util.image_util import imread
 from util.render_util import RenderConfig
-from util.torch_util import NormalizedRenderLayer, NormalizedCompositLayer
+from util.torch_util import *
 
 
 class StableModel(BaseModel):
@@ -47,9 +48,9 @@ class StableModel(BaseModel):
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['D', 'G']
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        visual_names_A = ['real_A']
-        visual_names_B = ['fake_B_tex_show', 'real_B', 'fake_B']
-        self.visual_names = visual_names_A + visual_names_B
+        visual_names_tex = ['gbuffer', 'synth_tex_show']
+        visual_names_render = ['target', 'synth']
+        self.visual_names = visual_names_tex + visual_names_render
 
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
         if self.isTrain:
@@ -58,20 +59,42 @@ class StableModel(BaseModel):
             self.model_names = ['G']
 
         # load/define networks
+
+        ### Begin Generator Pipeline ###
+
+        # 1. Generate Texture from Gbuffer prior
         self.netG = networks.define_G(opt.input_nc, opt.texture_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        # 2. Pre-processing:
+        #    - Strip batch dimension
+        #    - Normalize to [0,1] domain
+        #    - Switch dimension order
+        #    - Mask out unlearneable texture values **applied at runtime**
+        self.pre_process = nn.Sequential(
+                StripBatchDimLayer(),
+                NormalizeLayer(-1.0, 2.0),
+                CHW2HWCLayer(),
+        )
 
+        # 3. Render Image
         self.render_config = RenderConfig(json.loads(open(os.path.join(opt.dataroot, 'data.json')).read()))
-
         render_kwargs = {
-            "meshes_path": opt.meshes_path,
+            "meshes_path":  opt.meshes_path,
             "envmaps_path": opt.envmaps_path,
-            "out_sz": opt.fineSize,
-            "num_samples": opt.mc_subsampling,
-            "max_bounces": opt.mc_max_bounces,
-            "device": self.device,
-            "config": self.render_config,
+            "out_sz":       opt.fineSize,
+            "num_samples":  opt.mc_subsampling,
+            "max_bounces":  opt.mc_max_bounces,
+            "device":       self.device,
+            "config":       self.render_config,
         }
+        self.render = RenderLayer(**render_kwargs)
+
+        # 4. Post-processing:
+        #    - Add Signal Noise
+        #    - Composit Alpha layer to mask out environment map
+        #    - Undo switch dimension order
+        #    - Undo normalization
+        #    - Add back batch dimension
         noise_kwargs = {
             "sigma": opt.gaussian_sigma,
             "device": self.device,
@@ -81,10 +104,12 @@ class StableModel(BaseModel):
             "size": opt.fineSize,
             "device": self.device,
         }
-        self.render_layer = NormalizedRenderLayer(
-            render_kwargs,
-            noise_kwargs,
-            composit_kwargs
+        self.post_process = nn.Sequential(
+            GaussianNoiseLayer(**noise_kwargs),
+            CompositLayer(**composit_kwargs),
+            HWC2CHWLayer(),
+            NormalizeLayer(0.5, 0.5),
+            AddBatchDimLayer(),
         )
 
         background = imread(opt.viz_composit_bkgd_path)
@@ -96,13 +121,15 @@ class StableModel(BaseModel):
         }
         self.composit_layer = NormalizedCompositLayer(**visdom_kwargs)
 
+        ### End Generator Pipeline ###
+
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
             self.netD = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
-            self.fake_B_pool = ImagePool(opt.pool_size)
+            self.synth_pool = ImagePool(opt.pool_size)
             # define loss functions
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan).to(self.device)
             # initialize optimizers
@@ -113,18 +140,27 @@ class StableModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
 
     def set_input(self, input):
-        self.real_A = input['A'].to(self.device)
-        self.real_B = input['B'].to(self.device)
-        self.filename = input['filename']
+        self.gbuffer = input['gbuffer'].to(self.device)
+        self.target = input['target'].to(self.device)
+        self.gbuffer_mask = input['gbuffer_mask'].to(self.device)[0,...]
+        self.config_key = input['config_keys'][0]
 
     def forward(self):
-        self.fake_B_tex = self.netG(self.real_A)
+        self.synth_tex = self.netG(self.gbuffer)
+        # Pre-process
+        self.synth_tex = self.pre_process(self.synth_tex)
+        self.synth_tex = self.synth_tex * self.gbuffer_mask
         # Set camera parameters and pass to renderer
-        self.render_config.set_config(self.filename[0])
-        self.fake_B = self.render_layer(self.fake_B_tex)
+        self.render_config.set_config(self.config_key)
+        self.synth = self.render(self.synth_tex)
+        # Post-process
+        self.synth = self.post_process(self.synth)
 
         # Composit for visuals
-        self.fake_B_tex_show = self.composit_layer(self.fake_B_tex)
+        with torch.no_grad():
+            self.synth_tex_show = self.synth_tex.clone()
+            self.synth_tex_show[:,:,-1] = 1 - self.synth_tex_show[:,:,-1]
+            self.synth_tex_show = self.composit_layer(self.synth_tex_show)
 
     def backward_D_basic(self, netD, real, fake):
         # Real
@@ -140,13 +176,13 @@ class StableModel(BaseModel):
         return loss_D
 
     def backward_D(self):
-        fake_B = self.fake_B_pool.query(self.fake_B)
+        synth = self.synth_pool.query(self.synth)
         self.loss_D = self.backward_D_basic(
-                self.netD, self.real_B, fake_B)
+                self.netD, self.target, synth)
 
     def backward_G(self):
         # GAN loss D(G(A))
-        self.loss_G = self.criterionGAN(self.netD(self.fake_B), True)
+        self.loss_G = self.criterionGAN(self.netD(self.synth), True)
         self.loss_G.backward()
 
     def optimize_parameters(self):
