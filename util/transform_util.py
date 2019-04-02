@@ -27,9 +27,10 @@ class GaussianNoise(object):
     def __call__(self, input):
         if self.sigma != 0:
             scale = self.sigma * input.detach()
+            # no noise in alpha channel
             if input.size()[-1] == 4:
                 scale[:,:,-1] *= 0
-            sampled_noise = self.noise.repeat(*input.size()).normal_() * scale
+            sampled_noise = self.noise.repeat(*input[...,:1].shape).normal_() * scale
             input = input + sampled_noise
         return input
 
@@ -41,7 +42,7 @@ class GaussianNoiseNP(object):
 
     def __call__(self, input):
         scale = self.sigma * input
-        sampled_noise = np.random.normal(np.zeros(input.shape), 1.0) * scale
+        sampled_noise = np.random.normal(np.zeros(input[...,:1].shape), 1.0) * scale
         out = input + sampled_noise
         return out
 
