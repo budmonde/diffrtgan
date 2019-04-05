@@ -31,7 +31,8 @@ class StableModel(BaseModel):
         # Render Config
         parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one_mtl', help='Path of mesh pool to render')
         parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/rasters', help='Path of envmap pool to render')
-        parser.add_argument('--mc_subsampling', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on rendering step')
+        parser.add_argument('--mc_samples_forward', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on forward rendering step')
+        parser.add_argument('--mc_samples_backward', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on backward rendering step')
         parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
 
         # Visuals Config
@@ -82,7 +83,7 @@ class StableModel(BaseModel):
             "meshes_path":  opt.meshes_path,
             "envmaps_path": opt.envmaps_path,
             "out_sz":       opt.fineSize,
-            "num_samples":  opt.mc_subsampling,
+            "num_samples":  (opt.mc_samples_forward, opt.mc_samples_backward),
             "max_bounces":  opt.mc_max_bounces,
             "device":       self.device,
             "config":       self.render_config,
