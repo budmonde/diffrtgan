@@ -5,85 +5,101 @@ import skimage
 import skimage.morphology
 from PIL import Image
 
-from image_util import imread, imwrite
+from util.image_util import imread, imwrite
 
 ROOT_DIR = './datasets/cosy/'
-IMG_DIR = '{}img/'.format(ROOT_DIR)
-LABEL_DIR = '{}label/'.format(ROOT_DIR)
-MASK_DIR = '{}mask/'.format(ROOT_DIR)
-IMG_OUT_DIR = '{}img_out/'.format(ROOT_DIR)
+RAW_IMG_DIR = os.path.join(ROOT_DIR, 'raw/img')
+LABEL_DIR = os.path.join(ROOT_DIR, 'raw/label')
+MASK_DIR = os.path.join(ROOT_DIR, 'mask')
+IMG_DIR = os.path.join(ROOT_DIR, 'img')
+
 
 if not os.path.exists(MASK_DIR):
     os.makedirs(MASK_DIR)
-if not os.path.exists(IMG_OUT_DIR):
-    os.makedirs(IMG_OUT_DIR)
+if not os.path.exists(IMG_DIR):
+    os.makedirs(IMG_DIR)
 
 def center_and_scale(img, mask):
     # Scale the Image
     props = skimage.measure.regionprops(mask)
 
-    if (len(props) < 1):
+    # Reject unless there's only one blob
+    if (len(props) !=1):
+        print('props {}'.format(len(props)), end=' ')
         return None
 
-    area = props[0].filled_area
-    baseline_area = 20000
-    s = math.sqrt(area / baseline_area)
-    tfm = skimage.transform.AffineTransform(scale=(s, s))
-    mask = skimage.transform.warp(mask, tfm, order=0, preserve_range=True)
-    img = skimage.transform.warp(img, tfm, order=1, preserve_range=True)
+    # Reject if bbox ratio is off
+    bbox = props[0].bbox
+    ratio = (bbox[4] - bbox[1]) / (bbox[3] - bbox[0])
+    # Tuned magic numbers
+    RATIO_MEAN = 2.83
+    RATIO_STD = 0.05
+    if abs(ratio - RATIO_MEAN) > RATIO_STD:
+        print('ratio {:4f}'.format(ratio), end=' ')
+        return None
+
+    # Normalize car scale
+    image_size = mask.shape[0] * mask.shape[1]
+    BASELINE_PERCENTAGE = 0.4
+    target_area = image_size * BASELINE_PERCENTAGE
+    mask_area = props[0].filled_area
+
+    factor = math.sqrt(target_area / mask_area)
+    scale = skimage.transform.AffineTransform(scale=(1/factor, 1/factor))
+    mask = skimage.transform.warp(mask, scale, order=0, preserve_range=True)
+    img = skimage.transform.warp(img, scale, order=1, preserve_range=True)
+
+    dx = (factor - 1) * mask.shape[0] / 2
+    dy = (factor - 1) * mask.shape[1] / 2
+
+    trans = skimage.transform.AffineTransform(translation=(dx, dy))
+    mask = skimage.transform.warp(mask, trans, order=0, preserve_range=True)
+    img = skimage.transform.warp(img, trans, order=1, preserve_range=True)
 
     # Translate the Image
     props = skimage.measure.regionprops(mask.astype('uint8'))
 
-    if (len(props) < 1):
-        return None
-
     bbox = props[0].bbox
-    cx, cy = (bbox[4] + bbox[1]) / 2,\
-             (bbox[3] + bbox[0]) / 2
-    dx, dy = int(round((cx - mask.shape[0]/2))),\
-             int(round((cy - mask.shape[1]/2)))
+    cy = (bbox[3] + bbox[0]) / 2
+    dy = int(round((cy - mask.shape[0]/2)))
 
-    tfm = skimage.transform.AffineTransform(translation=(dx, dy))
+    tfm = skimage.transform.AffineTransform(translation=(0, dy))
     mask = skimage.transform.warp(mask, tfm, order=0, preserve_range=True)
     img = skimage.transform.warp(img, tfm, order=1, preserve_range=True)
 
     return (img, mask)
 
-dist_arr = []
-
-fn_list = os.listdir(IMG_DIR)
+fn_list = os.listdir(RAW_IMG_DIR)
 for fn in fn_list:
+    # Fetch file metadata
     fn = fn.split('.')[0]
-    #if (fn != '0_5_frame_8373293'):
-    #    continue
-    print('Processing: {}'.format(fn), end=' ')
-    img_fpath = os.path.join(IMG_DIR, '{}.exr'.format(fn))
-    img = imread(img_fpath)
+    print('Processing: {}'.format(fn), end='\t')
+    img_fpath = os.path.join(RAW_IMG_DIR, '{}.exr'.format(fn))
     label_fpath = os.path.join(LABEL_DIR, 'label_{}.png'.format(fn))
+
+    # Open images. Open label using PIL because image is encoded in uint8
+    img = imread(img_fpath)
     label = np.array(Image.open(label_fpath))
+
+    # Isolate masks
     label[label != 250] = 0.
     label[label == 250] = 1.
 
+    # Clean up the mask
     label = label.astype(bool)
-    skimage.morphology.remove_small_objects(label, min_size = 200, in_place=True)
-    skimage.morphology.remove_small_holes(label, in_place=True)
+    skimage.morphology.remove_small_objects(label, min_size = 1000, in_place=True)
+    skimage.morphology.remove_small_holes(label, area_threshold = 1000, in_place=True)
     label = label.astype('uint8')
 
-    mean = np.mean(label)
-    if mean <= 0.1:
-        print('\tRejecting: {}'.format(fn))
-        continue
-
+    # Normalize the mask
     out = center_and_scale(img, label)
 
+    # Reject if there was an issue with the image
     if out == None:
-        print('\tRejecting: {}'.format(fn))
+        print('Rejecting: {}'.format(fn))
         continue
 
-    print('\tWriting: {}'.format(fn))
-    dist_arr.append(mean)
-    imwrite(out[0], os.path.join(IMG_OUT_DIR, '{}.png'.format(fn)))
+    # Write to disk
+    print('Writing: {}'.format(fn))
+    imwrite(out[0], os.path.join(IMG_DIR, '{}.png'.format(fn)))
     imwrite(out[1], os.path.join(MASK_DIR, 'label_{}.png'.format(fn)))
-
-print(np.histogram(np.array(dist_arr)))
