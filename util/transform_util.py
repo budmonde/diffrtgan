@@ -96,15 +96,16 @@ class Lambda(object):
         return self.lambd(input)
 
 class Resize(object):
-    def __init__(self, size):
+    def __init__(self, size, order = 1):
         super(Resize, self).__init__()
         if type(size) == int:
             self.size = (size, size)
         else:
             self.size = size
+        self.order = order
 
     def __call__(self, input):
-        return resize(input, self.size)
+        return resize(input, self.size, order = self.order)
 
 class RandomCrop(object):
     def __init__(self, size):
