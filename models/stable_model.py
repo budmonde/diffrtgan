@@ -29,14 +29,14 @@ class StableModel(BaseModel):
                 loadSize=256,
         )
         # Render Config
-        parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one_mtl', help='Path of mesh pool to render')
+        parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one', help='Path of mesh pool to render')
         parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/rasters', help='Path of envmap pool to render')
-        parser.add_argument('--mc_samples_forward', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on forward rendering step')
+        parser.add_argument('--mc_samples_forward', type=int, default=200, help='Number of Monte-Carlo subsamples per-pixel on forward rendering step')
         parser.add_argument('--mc_samples_backward', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on backward rendering step')
         parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
 
         # Visuals Config
-        parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/transparency/transparency.png', help='Compositing background used for visualization of semi-transparent textures')
+        parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/composit_background.png', help='Compositing background used for visualization of semi-transparent textures')
 
         # Network Config
         parser.add_argument('--texture_nc', type=int, default=4, help='Number of channels in the texture output')
@@ -160,7 +160,7 @@ class StableModel(BaseModel):
         # Composit for visuals
         with torch.no_grad():
             self.synth_tex_show = self.synth_tex.clone()
-            self.synth_tex_show[:,:,-1] = 1 - self.synth_tex_show[:,:,-1]
+            #self.synth_tex_show[:,:,-1] = 1 - self.synth_tex_show[:,:,-1]
             self.synth_tex_show = self.composit_layer(self.synth_tex_show)
 
     def backward_D_basic(self, netD, real, fake):
