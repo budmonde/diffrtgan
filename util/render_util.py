@@ -13,10 +13,6 @@ import pyredner
 from .image_util import imread
 
 
-def gen_hash(length):
-    return hashlib.sha256(str(random.randint(0, 1e10))\
-                  .encode('utf-8')).hexdigest()[:length]
-
 class RenderLogger(object):
     def __init__(self, data = None, write = True):
         super(RenderLogger, self).__init__()
@@ -262,6 +258,11 @@ class Render(object):
 ##############################
 ###### HELPER FUNCTIONS ######
 ##############################
+
+# Hashname generator
+def gen_hash(length):
+    return hashlib.sha256(str(random.randint(0, 1e10))\
+                  .encode('utf-8')).hexdigest()[:length]
 
 # List of Child paths
 def get_children_path_list(path):
