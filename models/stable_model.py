@@ -162,7 +162,7 @@ class StableModel(BaseModel):
         # Composit for visuals
         with torch.no_grad():
             self.synth_tex_show = self.synth_tex.clone()
-            #self.synth_tex_show[:,:,-1] = 1 - self.synth_tex_show[:,:,-1]
+            self.synth_tex_show[:,:,-1] = self.synth_tex_show[:,:,-1] + (1 - self.synth_tex_show[:,:,-1]) * (1 - self.gbuffer_mask[:,:,0])
             self.synth_tex_show = self.composit_layer(self.synth_tex_show)
 
             if self.opt.debug:
