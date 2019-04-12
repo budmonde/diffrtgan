@@ -51,6 +51,8 @@ class StableModel(BaseModel):
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
         visual_names_tex = ['gbuffer', 'synth_tex_show']
         visual_names_render = ['target', 'synth']
+        if self.opt.debug:
+            visual_names_render.append('diff')
         self.visual_names = visual_names_tex + visual_names_render
 
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
@@ -162,6 +164,10 @@ class StableModel(BaseModel):
             self.synth_tex_show = self.synth_tex.clone()
             #self.synth_tex_show[:,:,-1] = 1 - self.synth_tex_show[:,:,-1]
             self.synth_tex_show = self.composit_layer(self.synth_tex_show)
+
+            if self.opt.debug:
+                self.diff = torch.abs(self.target - self.synth)
+                self.diff = (self.diff - 1.0)
 
     def backward_D_basic(self, netD, real, fake):
         # Real

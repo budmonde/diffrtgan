@@ -42,6 +42,9 @@ class BaseOptions():
         parser.add_argument('--init_gain', type=float, default=0.02, help='scaling factor for normal, xavier and orthogonal.')
         parser.add_argument('--verbose', action='store_true', help='if specified, print more debugging information')
         parser.add_argument('--suffix', default='', type=str, help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{loadSize}')
+
+        parser.add_argument('--debug', action='store_true', help='debug mode')
+
         self.initialized = True
         return parser
 
@@ -94,6 +97,12 @@ class BaseOptions():
 
         opt = self.gather_options()
         opt.isTrain = self.isTrain   # train or test
+
+        # Debug changes
+        if opt.debug:
+            opt.display_env = 'debug'
+            opt.display_freq = 1
+            opt.print_freq = 1
 
         # process opt.suffix
         if opt.suffix:
