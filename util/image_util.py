@@ -1,9 +1,3 @@
-# disable skimage warnings
-def warn(*args, **kwargs):
-    pass
-import warnings
-warnings.warn = warn
-
 import numpy as np
 import OpenEXR
 import Imath
@@ -44,7 +38,9 @@ def imwrite(img, filename, normalize = False):
         exr.writePixels({'R': pixels_r, 'G': pixels_g, 'B': pixels_b})
         exr.close()
     else:
-        skimage.io.imsave(filename, np.power(np.clip(img, 0.0, 1.0), 1.0/2.2))
+        img = np.power(np.clip(img, 0.0, 1.0), 1.0/2.2)
+        img = (img * 255.0).astype('uint8')
+        skimage.io.imsave(filename, img)
 
 def imread(filename):
     if (filename[-4:] == '.exr'):
