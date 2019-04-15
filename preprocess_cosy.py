@@ -24,46 +24,48 @@ def center_and_scale(img, mask):
     props = skimage.measure.regionprops(mask)
 
     # Reject unless there's only one blob
-    if (len(props) !=1):
+    if (len(props) != 1):
         print('props {}'.format(len(props)), end=' ')
         return None
 
     # Reject if bbox ratio is off
-    bbox = props[0].bbox
-    ratio = (bbox[4] - bbox[1]) / (bbox[3] - bbox[0])
+    #bbox = props[0].bbox
+    #ratio = (bbox[4] - bbox[1]) / (bbox[3] - bbox[0])
     # Tuned magic numbers
-    RATIO_MEAN = 2.83
-    RATIO_STD = 0.05
-    if abs(ratio - RATIO_MEAN) > RATIO_STD:
-        print('ratio {:4f}'.format(ratio), end=' ')
-        return None
+    #RATIO_MEAN = 2.83
+    #RATIO_STD = 0.05
+    #if abs(ratio - RATIO_MEAN) > RATIO_STD:
+    #    print('ratio {:4f}'.format(ratio), end=' ')
+    #    return None
 
     # Normalize car scale
-    image_size = mask.shape[0] * mask.shape[1]
-    BASELINE_PERCENTAGE = 0.4
-    target_area = image_size * BASELINE_PERCENTAGE
-    mask_area = props[0].filled_area
+    #image_size = mask.shape[0] * mask.shape[1]
+    #BASELINE_PERCENTAGE = 0.4
+    #target_area = image_size * BASELINE_PERCENTAGE
+    #mask_area = props[0].filled_area
 
-    factor = math.sqrt(target_area / mask_area)
-    scale = skimage.transform.AffineTransform(scale=(1/factor, 1/factor))
-    mask = skimage.transform.warp(mask, scale, order=0, preserve_range=True)
-    img = skimage.transform.warp(img, scale, order=1, preserve_range=True)
+    #factor = math.sqrt(target_area / mask_area)
+    #scale = skimage.transform.AffineTransform(scale=(1/factor, 1/factor))
+    #mask = skimage.transform.warp(mask, scale, order=0, preserve_range=True)
+    #img = skimage.transform.warp(img, scale, order=1, preserve_range=True)
 
-    dx = (factor - 1) * mask.shape[0] / 2
-    dy = (factor - 1) * mask.shape[1] / 2
+    #dx = (factor - 1) * mask.shape[0] / 2
+    #dy = (factor - 1) * mask.shape[1] / 2
 
-    trans = skimage.transform.AffineTransform(translation=(dx, dy))
-    mask = skimage.transform.warp(mask, trans, order=0, preserve_range=True)
-    img = skimage.transform.warp(img, trans, order=1, preserve_range=True)
+    #trans = skimage.transform.AffineTransform(translation=(dx, dy))
+    #mask = skimage.transform.warp(mask, trans, order=0, preserve_range=True)
+    #img = skimage.transform.warp(img, trans, order=1, preserve_range=True)
 
     # Translate the Image
     props = skimage.measure.regionprops(mask.astype('uint8'))
 
     bbox = props[0].bbox
     cy = (bbox[3] + bbox[0]) / 2
+    cx = (bbox[4] + bbox[1]) / 2
     dy = int(round((cy - mask.shape[0]/2)))
+    dx = int(round((cx - mask.shape[1]/2)))
 
-    tfm = skimage.transform.AffineTransform(translation=(0, dy))
+    tfm = skimage.transform.AffineTransform(translation=(dx, dy))
     mask = skimage.transform.warp(mask, tfm, order=0, preserve_range=True)
     img = skimage.transform.warp(img, tfm, order=1, preserve_range=True)
 
@@ -73,6 +75,8 @@ fn_list = os.listdir(RAW_IMG_DIR)
 for fn in fn_list:
     # Fetch file metadata
     fn = fn.split('.')[0]
+    #if fn != 'frame_0005_0_5_5049041':
+    #    continue
     print('Processing: {}'.format(fn), end='\t')
     img_fpath = os.path.join(RAW_IMG_DIR, '{}.exr'.format(fn))
     label_fpath = os.path.join(LABEL_DIR, 'label_{}.png'.format(fn))
@@ -87,8 +91,10 @@ for fn in fn_list:
 
     # Clean up the mask
     label = label.astype(bool)
-    skimage.morphology.remove_small_objects(label, min_size = 1000, in_place=True)
-    skimage.morphology.remove_small_holes(label, area_threshold = 1000, in_place=True)
+    threshold = 70000
+    skimage.morphology.remove_small_objects(
+            label, min_size = threshold,in_place=True)
+    skimage.morphology.remove_small_holes(label, area_threshold = threshold, in_place=True)
     label = label.astype('uint8')
 
     # Normalize the mask
