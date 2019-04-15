@@ -9,6 +9,7 @@ import torch
 
 from util.image_util import imread, imwrite
 from util.render_util import RenderLogger, Render
+from util.transform_util import RandomCrop
 
 
 # Load arguments
@@ -23,7 +24,8 @@ parser.add_argument('--num_samples', type=int, default=200)
 parser.add_argument('--max_bounces', type=int, default=1)
 parser.add_argument('--label', type=str, default='debug')
 # Output args
-parser.add_argument('--num_imgs', type=int, default=100)
+parser.add_argument('--num_imgs', type=int, default=1000)
+parser.add_argument('--num_sets', type=int, default=100)
 parser.add_argument('--root_path', type=str, default='./datasets/renders/')
 # Misc
 parser.add_argument('--gpu_id', type=int, default=0, help='CUDA GPU id used for rendering. -1 for CPU')
@@ -48,7 +50,6 @@ device = torch.device('cuda:{}'.format(opt.gpu_id) if opt.gpu_id != -1 else 'cpu
 
 
 # Render setup
-texture = torch.tensor(imread(opt.texture_path), dtype=torch.float32, device=device)
 render_logger = RenderLogger()
 renderer = Render(
     opt.meshes_path,
@@ -60,8 +61,14 @@ renderer = Render(
     channels = channels,
     logger = render_logger)
 
+texture_lg = torch.tensor(imread(opt.texture_path), dtype=torch.float32, device=device)
+Crop = RandomCrop(opt.fineSize)
+texture = Crop(texture_lg)
+
 with open(os.path.join(out_path, 'data.bak'), 'a+') as backupfile:
     for i in range(opt.num_imgs):
+        if i % (opt.num_imgs // opt.num_sets) == 0:
+            texture = Crop(texture_lg)
         iter_start_time = time.time()
         out = renderer(texture)
         key = render_logger.get_active_id()
