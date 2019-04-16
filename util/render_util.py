@@ -154,9 +154,9 @@ class Render(object):
             return np.array([azim, elev, ornt])
         self.sampler.add(geo_rotation)
         def geo_rotation_noise():
-            azim = random.uniform(-0.00, 0.05) * math.pi * 2
-            elev = random.uniform(-0.00, 0.05) * math.pi * 2
-            ornt = random.uniform(0.00, 0.05)
+            azim = random.uniform(-0.00, 0.00) * math.pi * 2
+            elev = random.uniform(-0.00, 0.00) * math.pi * 2
+            ornt = random.uniform(0.00, 0.00)
             return np.array([azim, elev, ornt])
         self.sampler.add_noise(geo_rotation_noise)
 
@@ -167,9 +167,9 @@ class Render(object):
             return np.array([x, y, z])
         self.sampler.add(geo_translation)
         def geo_translation_noise():
-            x, y, z = random.uniform(-0.01, 0.01),\
-                      random.uniform(-0.01, 0.01),\
-                      random.uniform(-0.01, 0.01)
+            x, y, z = random.uniform(-0.00, 0.00),\
+                      random.uniform(-0.00, 0.00),\
+                      random.uniform(-0.00, 0.00)
             return np.array([x, y, z])
         self.sampler.add_noise(geo_translation_noise)
 
@@ -177,7 +177,7 @@ class Render(object):
             return 6.0 + random.uniform(1.0, 1.0) * 1.0
         self.sampler.add(geo_distance)
         def geo_distance_noise():
-            return random.uniform(-0.1, 0.1) * 1.0
+            return random.uniform(-0.0, 0.0) * 1.0
         self.sampler.add_noise(geo_distance_noise)
 
         def render_seed():
