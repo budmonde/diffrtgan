@@ -276,7 +276,6 @@ def get_mesh_geometry(mesh_path):
         learn_tex_idx = mtl_id_map['car_paint']
     else:
         learn_tex_idx = None
-    print(mtl_id_map)
     shapes = list()
     for mtl_name, mesh in mesh_list:
         shapes.append(pyredner.Shape(
