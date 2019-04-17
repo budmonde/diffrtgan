@@ -1,4 +1,3 @@
-import hashlib
 import os
 import math
 import random
@@ -10,7 +9,9 @@ import torch
 import redner
 import pyredner
 
+from .geometry_util import camera_parameters
 from .image_util import imread
+from .misc_util import *
 
 
 class RenderLogger(object):
@@ -128,8 +129,8 @@ class Render(object):
         self.meshes = dict(map(
             lambda mesh_path: (mesh_path, get_mesh_geometry(mesh_path)),
             list(filter(
-                lambda fn: fn.split('.')[-1] == 'obj',
-                get_children_path_list(meshes_path)
+                lambda fn: get_ext(fn) == 'obj',
+                get_child_paths(meshes_path)
             ))
         ))
 
@@ -140,7 +141,7 @@ class Render(object):
         # Load Environment Maps
         self.envmaps = dict(map(
             lambda envmap_path: (envmap_path, get_envmap(envmap_path, device)),
-            get_children_path_list(envmaps_path)
+            get_child_paths(envmaps_path)
         ))
 
         def tex_envmap_path():
@@ -218,10 +219,11 @@ class Render(object):
             diffuse_reflectance = input
             specular_reflectance = torch.tensor((0.8, 0.8, 0.8), device=self.device)
 
-        materials[car_mesh['learn_tex_idx']] = pyredner.Material(
-            diffuse_reflectance = diffuse_reflectance,
-            specular_reflectance = specular_reflectance,
-            roughness = torch.tensor([0.05], device=self.device))
+        if car_mesh['learn_tex_idx'] != None:
+            materials[car_mesh['learn_tex_idx']] = pyredner.Material(
+                diffuse_reflectance = diffuse_reflectance,
+                specular_reflectance = specular_reflectance,
+                roughness = torch.tensor([0.05], device=self.device))
 
         # Sample environment map choice
         envmap = self.envmaps[tex_envmap_path]
@@ -259,15 +261,6 @@ class Render(object):
 ###### HELPER FUNCTIONS ######
 ##############################
 
-# Hashname generator
-def gen_hash(length):
-    return hashlib.sha256(str(random.randint(0, 1e10))\
-                  .encode('utf-8')).hexdigest()[:length]
-
-# List of Child paths
-def get_children_path_list(path):
-    return [os.path.join(path, f) for f in os.listdir(path)]
-
 # Car Mesh Loader
 def get_mesh_geometry(mesh_path):
     mtl_map, mesh_list, _ = pyredner.load_obj(mesh_path)
@@ -279,7 +272,11 @@ def get_mesh_geometry(mesh_path):
         cnt += 1
         materials.append(v)
     # TODO: hardcoded. fix to make it load from a config file
-    learn_tex_idx = mtl_id_map['car_paint']
+    if 'car_paint' in mtl_id_map:
+        learn_tex_idx = mtl_id_map['car_paint']
+    else:
+        learn_tex_idx = None
+    print(mtl_id_map)
     shapes = list()
     for mtl_name, mesh in mesh_list:
         shapes.append(pyredner.Shape(
@@ -299,27 +296,3 @@ def get_mesh_geometry(mesh_path):
 def get_envmap(envmap_path, device):
     return pyredner.EnvironmentMap(torch.tensor(imread(envmap_path),\
         dtype=torch.float32, device=device))
-
-# Object transformation -> Camera Transformation
-def camera_parameters(euler_angles, translation, distance, up=(0.0, 1.0, 0.0)):
-    # Calculate Camera Position
-    cam_azim = -euler_angles[0]
-    cam_elev = math.pi/2 - euler_angles[1]
-    cam_pos_hat = np.array([
-        math.cos(cam_azim)*math.sin(cam_elev),
-        math.cos(cam_elev),
-        math.sin(cam_azim)*math.sin(cam_elev)
-    ])
-    cam_position = cam_pos_hat * distance - translation
-
-    # Calculate Camera Look-at
-    cam_dir = -cam_pos_hat
-    cam_look_at = cam_position + cam_dir
-
-    # Calculate Camera Up direction
-    up = np.array(up)
-    axis = -cam_pos_hat
-    cam_up = np.dot(up, axis) * axis +\
-             np.cross(axis, up) * math.sin(euler_angles[2]) +\
-             np.cross(np.cross(axis, up), axis) * math.cos(euler_angles[2])
-    return (cam_position, cam_look_at, cam_up)
