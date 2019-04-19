@@ -219,11 +219,10 @@ class Render(object):
             diffuse_reflectance = input
             specular_reflectance = torch.tensor((0.8, 0.8, 0.8), device=self.device)
 
-        if car_mesh['learn_tex_idx'] != None:
-            materials[car_mesh['learn_tex_idx']] = pyredner.Material(
-                diffuse_reflectance = diffuse_reflectance,
-                specular_reflectance = specular_reflectance,
-                roughness = torch.tensor([0.05], device=self.device))
+        materials[car_mesh['learn_tex_idx']] = pyredner.Material(
+            diffuse_reflectance = diffuse_reflectance,
+            specular_reflectance = specular_reflectance,
+            roughness = torch.tensor([0.05], device=self.device))
 
         # Sample environment map choice
         envmap = self.envmaps[tex_envmap_path]
