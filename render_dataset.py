@@ -22,7 +22,6 @@ parser.add_argument('--texture_path', type=str, default='./datasets/textures/dec
 parser.add_argument('--fineSize', type=int, default=256)
 parser.add_argument('--num_samples', type=int, default=200)
 parser.add_argument('--max_bounces', type=int, default=1)
-parser.add_argument('--label', type=str, default='debug')
 # Output args
 parser.add_argument('--num_imgs', type=int, default=1000)
 parser.add_argument('--num_sets', type=int, default=100)
@@ -41,9 +40,8 @@ channels = [
     'diffuse_reflectance'
 ]
 now = datetime.now()
-now_string = '{}-{}_{}-{}'.format(now.month, now.day, now.hour, now.minute)
-subdir_name = 'res{}mc{}_{}_{}'.format(opt.fineSize, opt.num_samples, opt.label, now_string)
-out_path = os.path.join(opt.root_path, subdir_name)
+subdir = '{}-{}_{}-{}'.format(now.month, now.day, now.hour, now.minute)
+out_path = os.path.join(opt.root_path, subdir)
 if not os.path.exists(out_path):
     os.makedirs(out_path)
 device = torch.device('cuda:{}'.format(opt.gpu_id) if opt.gpu_id != -1 else 'cpu')
