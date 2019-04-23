@@ -315,8 +315,9 @@ class LearnMesh(object):
 # Envmap Loader
 def load_envmap(envmap_path, signal_mean, rangle, device):
     envmap = imread(envmap_path)
-    #envmap = envmap / np.mean(envmap) * signal_mean
-    env_to_world = torch.tensor(get_rotation_matrix_y(rangle))
+    envmap = envmap / np.mean(envmap) * signal_mean
+    env_to_world = torch.tensor(get_rotation_matrix_y(rangle),
+            dtype=torch.float32)
     return pyredner.EnvironmentMap(
             torch.tensor(envmap, dtype=torch.float32, device=device),
             env_to_world=env_to_world)
