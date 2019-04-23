@@ -126,16 +126,10 @@ class Render(object):
             self.channels.append(getattr(redner.channels, ch))
 
         # Load Meshes
-        self.meshes = dict(map(
-            lambda mesh_path: (mesh_path, get_mesh_geometry(mesh_path)),
-            list(filter(
-                lambda fn: get_ext(fn) == 'obj',
-                get_child_paths(meshes_path)
-            ))
-        ))
+        self.meshes = get_child_paths(meshes_path, ext='pth')
 
         def geo_mesh_path():
-            return random.choice(list(self.meshes.keys()))
+            return random.choice(self.meshes)
         self.sampler.add(geo_mesh_path)
 
         # Load Environment Maps
@@ -204,9 +198,8 @@ class Render(object):
         render_seed            = self.sampler('render_seed')
 
         # Sample car_mesh choice
-        car_mesh = self.meshes[geo_mesh_path]
-        shapes = car_mesh['shapes']
-        materials = car_mesh['materials']
+        mesh = LearnMesh.load_state_dict(
+                torch.load(geo_mesh_path, map_location=self.device))
 
         # Set Learneable Material
         assert(isinstance(input, torch.Tensor))
@@ -227,7 +220,7 @@ class Render(object):
             diffuse_reflectance = input
             specular_reflectance = torch.tensor((0.8, 0.8, 0.8), device=self.device)
 
-        materials[car_mesh['learn_tex_idx']] = pyredner.Material(
+        mesh.materials[mesh.learn_tex_idx] = pyredner.Material(
             diffuse_reflectance = diffuse_reflectance,
             specular_reflectance = specular_reflectance,
             roughness = torch.tensor([0.05], device=self.device))
@@ -257,8 +250,8 @@ class Render(object):
         # removing variables redner allocates
         self.scene = pyredner.Scene(
             camera,
-            shapes,
-            materials,
+            mesh.shapes,
+            mesh.materials,
             [], envmap)
         args = pyredner.RenderFunction.serialize_scene(
             scene = self.scene,
@@ -269,39 +262,55 @@ class Render(object):
 
         return out
 
-##############################
-###### HELPER FUNCTIONS ######
-##############################
+class LearnMesh(object):
+    def __init__(self, materials, shapes, learn_tex_idx):
+        self.materials = materials
+        self.shapes = shapes
+        self.learn_tex_idx = learn_tex_idx
 
-# Car Mesh Loader
-def get_mesh_geometry(mesh_path):
-    mtl_map, mesh_list, _ = pyredner.load_obj(mesh_path)
-    mtl_id_map = dict()
-    materials = list()
-    cnt = 0
-    for k, v in mtl_map.items():
-        mtl_id_map[k] = cnt
-        cnt += 1
-        materials.append(v)
-    # TODO: hardcoded. fix to make it load from a config file
-    if 'car_paint' in mtl_id_map:
-        learn_tex_idx = mtl_id_map['car_paint']
-    else:
-        learn_tex_idx = None
-    shapes = list()
-    for mtl_name, mesh in mesh_list:
-        shapes.append(pyredner.Shape(
-            vertices = mesh.vertices,
-            indices = mesh.indices,
-            uvs = mesh.uvs,
-            normals = mesh.normals,
-            material_id = mtl_id_map[mtl_name]
-        ))
-    return {
-        'materials': materials,
-        'shapes': shapes,
-        'learn_tex_idx': learn_tex_idx,
-    }
+    def state_dict(self):
+        return {
+            'materials': [m.state_dict() for m in self.materials],
+            'shapes': [s.state_dict() for s in self.shapes],
+            'learn_tex_idx': self.learn_tex_idx
+        }
+
+    @classmethod
+    def load_obj(cls, mesh_path, learn_tex_label='car_paint'):
+        mtl_map, mesh_list, _ = pyredner.load_obj(mesh_path)
+        mtl_id_map = dict()
+        materials = list()
+        cnt = 0
+        for k, v in mtl_map.items():
+            mtl_id_map[k] = cnt
+            cnt += 1
+            materials.append(v)
+        assert(learn_tex_label in mtl_id_map)
+        learn_tex_idx = mtl_id_map[learn_tex_label]
+        shapes = list()
+        for mtl_name, mesh in mesh_list:
+            shapes.append(pyredner.Shape(
+                vertices = mesh.vertices,
+                indices = mesh.indices,
+                uvs = mesh.uvs,
+                normals = mesh.normals,
+                material_id = mtl_id_map[mtl_name]
+            ))
+        return cls(materials, shapes, learn_tex_idx)
+
+    @classmethod
+    def load_state_dict(cls, state_dict):
+        materials = [
+            pyredner.Material.load_state_dict(m)
+            for m in state_dict['materials']
+        ]
+        shapes =  [
+            pyredner.Shape.load_state_dict(s)
+            for s in state_dict['shapes']
+        ]
+        learn_tex_idx = state_dict['learn_tex_idx']
+
+        return cls(materials, shapes, learn_tex_idx)
 
 # Envmap Loader
 def load_envmap(envmap_path, signal_mean, rangle, device):
