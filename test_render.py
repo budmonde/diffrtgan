@@ -5,8 +5,8 @@ from util.render_util import RenderConfig
 from util.torch_util import RenderLayer
 
 
-meshes_path = "./datasets/meshes/one"
-envmaps_path = "./datasets/envmaps/one"
+meshes_path = "./datasets/meshes/serialized"
+envmaps_path = "./datasets/envmaps/hdrs"
 fineSize = 512
 num_samples = 200
 max_bounces = 1
@@ -16,11 +16,13 @@ alpha_path = "./datasets/textures/decal.png"
 
 render_config = RenderConfig({
     'test': {
-        'geo_mesh_path': './datasets/meshes/one/octavia_clean.obj',
-        'tex_envmap_path': './datasets/envmaps/one/sunsky.exr',
-        'geo_rotation': [1.5707963267948966, 0.15, 0.0],
-        'geo_translation': [0.0, -0.65, 0.0],
-        'geo_distance': 8.3,
+        'geo_mesh_path': './datasets/meshes/serialized/octavia_clean.pth',
+        'tex_envmap_path': './datasets/envmaps/hdrs/lenong_1_1k.hdr',
+        'tex_envmap_signal_mean': 0.5,
+        'tex_envmap_rangle': 0.0,
+        'geo_rotation': [2.4363371599267785, 0.14922565104551516, 0.0],
+        'geo_translation': [0.0, -0.75, 0.0],
+        'geo_distance': 7.0,
         'render_seed': 0,
     }
 })
@@ -32,6 +34,7 @@ render_kwargs = {
     "num_samples":  num_samples,
     "max_bounces":  max_bounces,
     "device":       device,
+    "channels":     ["radiance"],
     "config":       render_config,
 }
 render_layer = RenderLayer(**render_kwargs)
