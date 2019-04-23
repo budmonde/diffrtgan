@@ -9,7 +9,7 @@ import torch
 import redner
 import pyredner
 
-from .geometry_util import camera_parameters
+from .geometry_util import camera_parameters, get_rotation_matrix_y
 from .image_util import imread
 from .misc_util import *
 
@@ -139,14 +139,20 @@ class Render(object):
         self.sampler.add(geo_mesh_path)
 
         # Load Environment Maps
-        self.envmaps = dict(map(
-            lambda envmap_path: (envmap_path, get_envmap(envmap_path, device)),
-            get_child_paths(envmaps_path)
-        ))
+        # TODO: Serialize with pth
+        self.envmaps = get_child_paths(envmaps_path, ext='hdr')
 
         def tex_envmap_path():
-            return random.choice(list(self.envmaps.keys()))
+            return random.choice(self.envmaps)
         self.sampler.add(tex_envmap_path)
+
+        def tex_envmap_signal_mean():
+            return random.uniform(0.00, 1.00) * 2.0 + 2.0
+        self.sampler.add(tex_envmap_signal_mean)
+
+        def tex_envmap_rangle():
+            return random.uniform(0.00, 1.00) * math.pi * 2
+        self.sampler.add(tex_envmap_rangle)
 
         def geo_rotation():
             azim = random.uniform(0.00, 0.50) * math.pi * 2
@@ -188,12 +194,14 @@ class Render(object):
     def __call__(self, input):
         # Init Config and Logger entry
         self.logger.init()
-        geo_mesh_path   = self.sampler('geo_mesh_path')
-        tex_envmap_path = self.sampler('tex_envmap_path')
-        geo_rotation    = self.sampler('geo_rotation')
-        geo_translation = self.sampler('geo_translation')
-        geo_distance    = self.sampler('geo_distance')
-        render_seed     = self.sampler('render_seed')
+        geo_mesh_path          = self.sampler('geo_mesh_path')
+        tex_envmap_path        = self.sampler('tex_envmap_path')
+        tex_envmap_signal_mean = self.sampler('tex_envmap_signal_mean')
+        tex_envmap_rangle      = self.sampler('tex_envmap_rangle')
+        geo_rotation           = self.sampler('geo_rotation')
+        geo_translation        = self.sampler('geo_translation')
+        geo_distance           = self.sampler('geo_distance')
+        render_seed            = self.sampler('render_seed')
 
         # Sample car_mesh choice
         car_mesh = self.meshes[geo_mesh_path]
@@ -225,10 +233,15 @@ class Render(object):
             roughness = torch.tensor([0.05], device=self.device))
 
         # Sample environment map choice
-        envmap = self.envmaps[tex_envmap_path]
+        envmap = load_envmap(
+            tex_envmap_path,
+            tex_envmap_signal_mean,
+            tex_envmap_rangle,
+            self.device)
 
         # Sample Camera Params
-        position, look_at, up = camera_parameters(geo_rotation, geo_translation, geo_distance)
+        position, look_at, up = camera_parameters(
+                geo_rotation, geo_translation, geo_distance)
         camera = pyredner.Camera(
             position     = torch.tensor(position, dtype=torch.float32),
             look_at      = torch.tensor(look_at, dtype=torch.float32),
@@ -291,6 +304,10 @@ def get_mesh_geometry(mesh_path):
     }
 
 # Envmap Loader
-def get_envmap(envmap_path, device):
-    return pyredner.EnvironmentMap(torch.tensor(imread(envmap_path),\
-        dtype=torch.float32, device=device))
+def load_envmap(envmap_path, signal_mean, rangle, device):
+    envmap = imread(envmap_path)
+    #envmap = envmap / np.mean(envmap) * signal_mean
+    env_to_world = torch.tensor(get_rotation_matrix_y(rangle))
+    return pyredner.EnvironmentMap(
+            torch.tensor(envmap, dtype=torch.float32, device=device),
+            env_to_world=env_to_world)
