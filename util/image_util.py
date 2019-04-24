@@ -4,6 +4,8 @@ import Imath
 import imageio
 import skimage
 import skimage.io
+from skimage.color import hsv2rgb
+from skimage.transform import resize
 import torch
 import os
 
@@ -75,3 +77,19 @@ def imread(filename):
     else:
         return np.power(skimage.img_as_float(im).astype(np.float32), 2.2)
 
+# Not the best place for this function
+def grey2heatmap(image_torch, size):
+    im = np.array(image_torch[0,...].cpu()).transpose([1, 2, 0])
+
+    im = resize(im, (size, size))
+
+    h = im[:,:,0]
+    s = np.ones(im.shape[:2])
+    v = np.ones(im.shape[:2])
+
+    hsv = np.stack([h, s, v], axis=-1)
+    rgb = hsv2rgb(hsv)
+
+    rgb_torch = torch.tensor(rgb.transpose([2, 0, 1]), dtype=torch.float32).unsqueeze(0);
+
+    return rgb_torch

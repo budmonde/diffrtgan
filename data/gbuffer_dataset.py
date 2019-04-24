@@ -1,7 +1,8 @@
+import json
+import math
+import os
 import random
 import re
-import math
-import os.path
 
 import numpy as np
 import torch
@@ -9,6 +10,7 @@ import torch
 from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
 from util.image_util import imread, imwrite
+from util.misc_util import get_fn
 from util.transform_util import GaussianNoiseNP, ToTensor
 
 
@@ -23,6 +25,8 @@ class GbufferDataset(BaseDataset):
         self.opt = opt
         self.root = opt.dataroot
 
+        self.config = json.loads(open(os.path.join(opt.dataroot, 'data.json')).read())
+
         # Load target images and their alphamasks
         self.dir_target_img = os.path.join(opt.dataroot, 'img')
         self.target_img_paths = make_dataset(self.dir_target_img)
@@ -30,13 +34,8 @@ class GbufferDataset(BaseDataset):
         self.target_img_size = len(self.target_img_paths)
 
         self.dir_target_mask = os.path.join(opt.dataroot, 'mask')
-        self.target_mask_paths = make_dataset(self.dir_target_mask)
-        self.target_mask_paths = sorted(self.target_mask_paths)
-        self.target_mask_size = len(self.target_mask_paths)
-
-        assert(self.target_img_size == self.target_mask_size)
-
         self.dir_gbuffer_position = os.path.join(opt.gbuffer_root, 'position')
+        self.dir_gbuffer_normal = os.path.join(opt.gbuffer_root, 'normal')
         self.dir_gbuffer_mask = os.path.join(opt.gbuffer_root, 'mask')
 
         self.noise = GaussianNoiseNP(opt.gaussian_sigma)
@@ -45,15 +44,23 @@ class GbufferDataset(BaseDataset):
         self.mask_transform = ToTensor()
 
     def __getitem__(self, index):
-        # Load Target Image and alphamask
+        # Load appropriate paths
         target_img_path = self.target_img_paths[index % self.target_img_size]
-        target_mask_path = self.target_mask_paths[index % self.target_mask_size]
 
+        config_key = get_fn(target_img_path)
+        label = get_fn(self.config[config_key]['geo_mesh_path'])
+
+        target_mask_path = os.path.join(self.dir_target_mask, f'{config_key}.png')
+        gbuffer_position_path = os.path.join(self.dir_gbuffer_position, f'{label}.png')
+        gbuffer_normal_path = os.path.join(self.dir_gbuffer_normal, f'{label}.png')
+        gbuffer_mask_path = os.path.join(self.dir_gbuffer_mask, f'{label}.png')
+
+        # Load target and mask
         target_img = imread(target_img_path)
         target_mask = imread(target_mask_path)
 
+        # Add noise to target image
         target_img = self.noise(target_img)
-
         target = target_img * target_mask
         target = self.image_transform(target)
 
@@ -61,23 +68,16 @@ class GbufferDataset(BaseDataset):
         target_mask = self.mask_transform(target_mask)
 
         # Load Gbuffer Images and alphamask
-        # TODO: For now hardcoded for one learneable texture
-        gbuffer_position_path = os.path.join(self.dir_gbuffer_position, 'octavia_clean.png')
-        gbuffer_mask_path = os.path.join(self.dir_gbuffer_mask, 'octavia_clean.png')
-
-        # Setup gbuffer
         gbuffer_position = imread(gbuffer_position_path)
-        gbuffer_mask= imread(gbuffer_mask_path)
+        gbuffer_normal = imread(gbuffer_normal_path)
+        gbuffer_mask = imread(gbuffer_mask_path)
 
-        gbuffer = gbuffer_position * gbuffer_mask
+        gbuffer = np.concatenate([gbuffer_position, gbuffer_normal], axis=-1)
+        gbuffer = gbuffer * gbuffer_mask[:,:,:1]
         gbuffer = self.image_transform(gbuffer)
-        #gbuffer = torch.cat([gbuffer_position, gbuffer_normal], dim=0)
 
         gbuffer_mask = np.repeat(gbuffer_mask[:,:,:1], 4, axis=-1)
         gbuffer_mask = self.mask_transform(gbuffer_mask)
-
-        # Fetch image path for config loading during rendering
-        config_key = re.split('/|\.', target_img_path)[-2]
 
         if self.opt.input_nc == 1:  # RGB to gray
             tmp = gbuffer[0, ...] * 0.299 + gbuffer[1, ...] * 0.587 + gbuffer[2, ...] * 0.114
