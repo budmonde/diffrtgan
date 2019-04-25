@@ -19,8 +19,6 @@ def main():
 
     mesh_path_list = get_child_paths(MESHES_PATH, ext='obj')
     for path in mesh_path_list:
-        if get_fn(path) != 'octavia_clean':
-            continue
         print(f'Serializing mesh {path}')
         mesh = LearnMesh.load_obj(path)
         torch.save(mesh.state_dict(),

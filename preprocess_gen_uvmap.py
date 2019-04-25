@@ -29,7 +29,17 @@ def hemispherical_uv_map(inp_path, out_path, write_mtl):
                     fis.append('{}/{}/{}'.format(vi,vi,ni))
                 f.write('f {}\n'.format(' '.join(fis)))
             else:
-                if write_mtl:
+                if not write_mtl:
+                    continue
+                elif splitted[0] == 'map_Kd':
+                    continue
+                elif splitted[0] == 'map_Ka':
+                    continue
+                elif splitted[0] == 'map_Bump':
+                    continue
+                elif splitted[0] == 'usemtl' and splitted[1] == '(null)':
+                    continue
+                else:
                     f.write(og_line)
 
 if __name__ == '__main__':
