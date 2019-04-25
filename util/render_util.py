@@ -101,7 +101,7 @@ class Render(object):
             num_samples,
             max_bounces,
             device,
-            channels = ['radiance', 'alpha'],
+            channels = ['radiance'],
             logger = RenderLogger(write = False),
             config = RenderConfig()):
         super(Render, self).__init__()
@@ -201,6 +201,8 @@ class Render(object):
         mesh = LearnMesh.load_state_dict(
                 torch.load(geo_mesh_path, map_location=self.device))
 
+        #mesh.add_ground(self.device)
+
         # Set Learneable Material
         assert(isinstance(input, torch.Tensor))
         assert(input.device == self.device)
@@ -258,7 +260,11 @@ class Render(object):
             num_samples = self.num_samples,
             max_bounces = self.max_bounces,
             channels = self.channels)
-        out = pyredner.RenderFunction.apply(render_seed, *args)
+        render = pyredner.RenderFunction.apply(render_seed, *args)
+
+        #TODO: Add flag to ask whether to normalize
+        render /= torch.mean(render) * 2
+        out = torch.clamp(render, 0, 1)
 
         return out
 
@@ -267,6 +273,27 @@ class LearnMesh(object):
         self.materials = materials
         self.shapes = shapes
         self.learn_tex_idx = learn_tex_idx
+        self.ground_idx = None
+
+    def add_ground(self, device):
+        self.materials.append(pyredner.Material(
+            diffuse_reflectance = torch.tensor([0.8, 0.8, 0.8], dtype=torch.float32, device=device),
+            specular_reflectance = torch.tensor([0.1, 0.1, 0.1], dtype=torch.float32, device=device),
+            roughness = torch.tensor([0.5], dtype=torch.float32, device=device)
+        ))
+        self.shapes.append(pyredner.Shape(
+            vertices = torch.tensor([[-100, 0, -100],[-100, 0, 100],[100,0,-100],[100,0,100]], dtype=torch.float32, device=device),
+            indices = torch.tensor([[0, 1, 2], [1, 3, 2]], dtype=torch.int32, device=device),
+            normals = torch.tensor([[0,1,0],[0,1,0],[0,1,0]], dtype=torch.float32, device=device),
+            uvs = torch.tensor([[0,0],[0,1],[1,0],[1,1]], dtype=torch.float32, device=device),
+            material_id=len(self.materials)-1,
+        ))
+        self.ground_idx = (len(self.materials)-1, len(self.shapes)-1)
+
+    def remove_ground(self):
+        if self.ground_idx != None:
+            del self.materisla[ground_idx[0]]
+            del self.shapes[ground_idx[1]]
 
     def state_dict(self):
         return {
