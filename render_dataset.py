@@ -15,8 +15,8 @@ from util.transform_util import RandomCrop
 # Load arguments
 parser = argparse.ArgumentParser()
 # Scene args
-parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/one')
-parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/rasters')
+parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/serialized')
+parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/hdrs')
 parser.add_argument('--texture_path', type=str, default='./datasets/textures/decal.png')
 # Render config args
 parser.add_argument('--fineSize', type=int, default=256)
