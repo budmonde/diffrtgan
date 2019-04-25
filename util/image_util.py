@@ -1,10 +1,10 @@
 import numpy as np
+import matplotlib
 import OpenEXR
 import Imath
 import imageio
 import skimage
 import skimage.io
-from skimage.color import hsv2rgb
 from skimage.transform import resize
 import torch
 import os
@@ -81,14 +81,15 @@ def imread(filename):
 def grey2heatmap(image_torch, size):
     im = np.array(image_torch[0,...].cpu()).transpose([1, 2, 0])
 
+    max_val = max(abs(np.max(im)), abs(np.min(im)))
+
+    im = (im / (2 * max_val)) + 0.5
+
     im = resize(im, (size, size))
 
-    h = im[:,:,0]
-    s = np.ones(im.shape[:2])
-    v = np.ones(im.shape[:2])
+    rgb = matplotlib.cm.get_cmap('viridis')(im[...,0])[...,:3]
 
-    hsv = np.stack([h, s, v], axis=-1)
-    rgb = hsv2rgb(hsv)
+    rgb = (rgb - 0.5) / 0.5
 
     rgb_torch = torch.tensor(rgb.transpose([2, 0, 1]), dtype=torch.float32).unsqueeze(0);
 
