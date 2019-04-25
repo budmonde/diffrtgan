@@ -51,8 +51,6 @@ class StableModel(BaseModel):
         visual_names_tex = ['gbuffer_position', 'gbuffer_normal', 'synth_tex_show']
         visual_names_render = ['target', 'synth']
         visual_names_loss = ['heatmap_real', 'heatmap_fake']
-        if self.opt.debug:
-            visual_names_render.append('diff')
         self.visual_names = visual_names_tex + visual_names_render + visual_names_loss
 
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
@@ -146,6 +144,8 @@ class StableModel(BaseModel):
         self.gbuffer = input['gbuffer'].to(self.device)
         self.target = input['target'].to(self.device)
         self.gbuffer_mask = input['gbuffer_mask'].to(self.device)[0,...]
+        self.target_mask = input['target_mask'].to(self.device)[0,...]
+        self.disc_mask = input['disc_mask'].to(self.device)[0,...]
         self.config_key = input['config_keys'][0]
 
         # Process visuals
@@ -161,6 +161,7 @@ class StableModel(BaseModel):
         self.render_config.set_config(self.config_key)
         self.synth = self.render(self.synth_tex)
         # Post-process
+        self.synth = torch.cat([self.synth, self.target_mask], dim=-1)
         self.synth = self.post_process(self.synth)
 
         # Process visuals
@@ -169,16 +170,14 @@ class StableModel(BaseModel):
             self.synth_tex_show[:,:,-1] = self.synth_tex_show[:,:,-1] + (1 - self.synth_tex_show[:,:,-1]) * (1 - self.gbuffer_mask[:,:,0])
             self.synth_tex_show = self.composit_layer(self.synth_tex_show)
 
-            if self.opt.debug:
-                self.diff = torch.abs(self.target - self.synth)
-                self.diff = (self.diff - 1.0)
-
     def backward_D_basic(self, netD, real, fake):
         # Real
         pred_real = netD(real)
+        pred_real = pred_real * self.disc_mask
         loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
         pred_fake = netD(fake.detach())
+        pred_fake = pred_fake * self.disc_mask
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5

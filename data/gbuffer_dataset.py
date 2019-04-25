@@ -11,7 +11,7 @@ from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
 from util.image_util import imread, imwrite
 from util.misc_util import get_fn
-from util.transform_util import GaussianNoiseNP, ToTensor
+from util.transform_util import GaussianNoiseNP, ToTensor, Resize
 
 
 class GbufferDataset(BaseDataset):
@@ -42,6 +42,7 @@ class GbufferDataset(BaseDataset):
 
         self.image_transform = get_transform(opt)
         self.mask_transform = ToTensor()
+        self.disc_mask_transform = Resize(30, order=0)
 
     def __getitem__(self, index):
         # Load appropriate paths
@@ -64,7 +65,9 @@ class GbufferDataset(BaseDataset):
         target = target_img * target_mask
         target = self.image_transform(target)
 
-        target_mask = np.repeat(target_mask[:,:,:1], 4, axis=-1)
+        disc_mask = self.disc_mask_transform(target_mask[:,:,:1]).transpose([2, 0, 1])
+        disc_mask = self.mask_transform(disc_mask)
+        target_mask = target_mask[:,:,:1]
         target_mask = self.mask_transform(target_mask)
 
         # Load Gbuffer Images and alphamask
@@ -87,7 +90,7 @@ class GbufferDataset(BaseDataset):
             tmp = target[0, ...] * 0.299 + target[1, ...] * 0.587 + target[2, ...] * 0.114
             target = tmp.unsqueeze(0)
         return {'gbuffer': gbuffer, 'gbuffer_mask': gbuffer_mask,
-                'target': target, 'target_mask': target_mask,
+                'target': target, 'target_mask': target_mask, 'disc_mask': disc_mask,
                 'target_paths': target_img_path, 'config_keys': config_key}
 
     def __len__(self):
