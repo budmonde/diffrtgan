@@ -1,11 +1,12 @@
 import torch
 
 from util.image_util import imread, imwrite
+from util.misc_util import *
 from util.render_util import RenderConfig
 from util.torch_util import RenderLayer
 
 
-meshes_path = "./datasets/meshes/serialized"
+meshes_path = "./datasets/meshes/clean_serialized"
 envmaps_path = "./datasets/envmaps/hdrs"
 fineSize = 512
 num_samples = 200
@@ -42,7 +43,11 @@ render_layer = RenderLayer(**render_kwargs)
 opaque = torch.tensor(imread(opaque_path), dtype=torch.float32, device=device)
 alpha = torch.tensor(imread(alpha_path), dtype=torch.float32, device=device)
 
-out = render_layer(opaque)
-imwrite(out, "debug/test_render_opaque_out.png")
-out = render_layer(alpha)
-imwrite(out, "debug/test_render_alpha_out.png")
+for fpath in get_child_paths(meshes_path):
+    print(f'Rendering {fpath}')
+    render_config.data[render_config.cfg_id]['geo_mesh_path'] = fpath
+    name = get_fn(fpath)
+    out = render_layer(opaque)
+    imwrite(out, f'debug/new_mesh_qual/{name}.png')
+#out = render_layer(alpha)
+#imwrite(out, "debug/test_render_alpha_out.png")

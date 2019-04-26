@@ -141,7 +141,8 @@ class Render(object):
         self.sampler.add(tex_envmap_path)
 
         def tex_envmap_signal_mean():
-            return random.uniform(0.00, 1.00) * 2.0 + 2.0
+            #return random.uniform(0.00, 1.00) * 2.0 + 2.0
+            return 0.01
         self.sampler.add(tex_envmap_signal_mean)
 
         def tex_envmap_rangle():
