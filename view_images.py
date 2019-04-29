@@ -1,12 +1,23 @@
+import argparse
 import os
 
-IMGS_DIR = './datasets/poses/octavia_clean/100_10/'
+from util.misc_util import *
 
-with open('./view_poses.html', 'w') as f:
-    fn_list = sorted(os.listdir(IMGS_DIR))
-    for fn in fn_list:
-        impath = os.path.join(IMGS_DIR, fn)
-        img_str = '<img src="{}" />'.format(impath)
-        f.write(img_str)
-        label_str = '<label>{}</label>'.format(fn)
-        f.write(label_str)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path', type=str, required=True)
+    opt = parser.parse_args()
+
+    name = get_fn(opt.path)
+
+    with open(f'./views/view_{name}.html', 'w') as f:
+        fn_list = sorted(os.listdir(opt.path))
+        for fn in fn_list:
+            impath = os.path.join(opt.path, fn)
+            img_str = '<img src="../{}" />'.format(impath)
+            f.write(img_str)
+            label_str = '<label>{}</label>'.format(fn)
+            f.write(label_str)
+
+if __name__ == '__main__':
+    main()
