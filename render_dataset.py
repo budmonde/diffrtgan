@@ -2,81 +2,95 @@ import argparse
 from datetime import datetime
 import json
 import os
-import random
 import time
 
+from skimage.transform import resize
 import torch
 
 from util.image_util import imread, imwrite
-from util.render_util import RenderLogger, Render
-from util.transform_util import RandomCrop
+from util.misc_util import *
+from util.render_util import Render, RenderConfig
+from util.sample_util import *
 
 
-# Load arguments
-parser = argparse.ArgumentParser()
-# Scene args
-parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/clean_serialized')
-parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/one')
-parser.add_argument('--texture_path', type=str, default='./datasets/textures/decal.png')
-# Render config args
-parser.add_argument('--fineSize', type=int, default=256)
-parser.add_argument('--num_samples', type=int, default=200)
-parser.add_argument('--max_bounces', type=int, default=1)
-# Output args
-parser.add_argument('--num_imgs', type=int, default=1000)
-parser.add_argument('--num_sets', type=int, default=100)
-parser.add_argument('--root_path', type=str, default='./datasets/renders/')
-# Misc
-parser.add_argument('--gpu_id', type=int, default=0, help='CUDA GPU id used for rendering. -1 for CPU')
-opt = parser.parse_args()
+def main():
+    # Load arguments
+    parser = argparse.ArgumentParser()
+    # Scene args
+    parser.add_argument('--geometry_path', type=str,
+            default='./datasets/meshes/clean_serialized')
+    parser.add_argument('--envmaps_path', type=str,
+            default='./datasets/envmaps/one')
+    parser.add_argument('--textures_path', type=str,
+            default='./datasets/textures/height')
+    parser.add_argument('--texture_size', type=int, default=256)
+    # Output args
+    parser.add_argument('--root_path', type=str, default='./datasets/renders/')
+    parser.add_argument('--num_imgs', type=int, default=1000)
+    parser.add_argument('--label', type=str, default='debug')
+    # Misc
+    parser.add_argument('--gpu_id', type=int, default=0,)
+    opt = parser.parse_args()
 
+    # Create Output directory
+    now = datetime.now()
+    subdir = f'{opt.label}_{now.month}-{now.day}-{now.hour}-{now.minute}'
+    out_path = os.path.join(opt.root_path, subdir)
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
 
-# Pre-process arguments
-channels = [
-    'radiance',
-    'alpha',
-    'position',
-    'shading_normal',
-    'diffuse_reflectance'
-]
-now = datetime.now()
-subdir = '{}-{}_{}-{}'.format(now.month, now.day, now.hour, now.minute)
-out_path = os.path.join(opt.root_path, subdir)
-if not os.path.exists(out_path):
-    os.makedirs(out_path)
-device = torch.device('cuda:{}'.format(opt.gpu_id) if opt.gpu_id != -1 else 'cpu')
+    # Load samplers
+    sampler = ConfigSampler({
+        'cam_rotation'       : HemisphereSamplerFactory(
+                                 [0.0, 0.5], [0.0, 0.0], [0.0, 0.0]),
+        'cam_translation'    : BoxSamplerFactory(
+                                 [-0.1, 0.1], [-0.76, -0.74], [-0.1, 0.1]),
+        'cam_distance'       : ConstantSamplerFactory(7.0),
+        'cam_fov'            : ConstantSamplerFactory([45.0]),
+        'cam_resolution'     : ConstantSamplerFactory([256, 256]),
+        'geometry_path'      : PathSamplerFactory(opt.geometry_path, ext='pth'),
+        'tex_diffuse_color'  : ConstantSamplerFactory([0.8, 0.8, 0.8]),
+        'tex_specular_color' : ConstantSamplerFactory([0.8, 0.8, 0.8]),
+        'envmap_path'        : PathSamplerFactory(opt.envmaps_path, ext='exr'),
+        'envmap_signal_mean' : ConstantSamplerFactory(0.5),
+        'envmap_rotation'    : ConstantSamplerFactory(0.0),
+        'opt_num_samples'    : ConstantSamplerFactory((200, 1)),
+        'opt_max_bounces'    : ConstantSamplerFactory(2),
+        'opt_channels_str'   : ConstantSamplerFactory(['radiance', 'alpha']),
+        'opt_render_seed'    : RandIntSamplerFactory(0, 1e6),
+    })
 
+    # Init renderer
+    device = torch.device(f'cuda:{opt.gpu_id}' if opt.gpu_id != -1 else 'cpu')
+    config = RenderConfig()
+    renderer = Render(config, device)
 
-# Render setup
-render_logger = RenderLogger()
-renderer = Render(
-    opt.meshes_path,
-    opt.envmaps_path,
-    opt.fineSize,
-    opt.num_samples,
-    opt.max_bounces,
-    device,
-    channels = channels,
-    logger = render_logger)
-
-texture_lg = torch.tensor(imread(opt.texture_path), dtype=torch.float32, device=device)
-Crop = RandomCrop(opt.fineSize)
-texture = Crop(texture_lg)
-
-with open(os.path.join(out_path, 'data.bak'), 'a+') as backupfile:
+    log = dict()
     for i in range(opt.num_imgs):
-        if i % (opt.num_imgs // opt.num_sets) == 0:
-            texture = Crop(texture_lg)
+        # Generate render id and scene configs
+        key = gen_hash(6)
+        while key in log.keys():
+            key = gen_hash()
+        scene = sampler.generate()
+        log[key] = scene
+        config.set_scene(scene)
+
+        # Set texture for rendering
+        mesh_name = get_fn(config('geometry_path'))
+        texture = imread(os.path.join(opt.textures_path, f'{mesh_name}.png'))
+        texture = resize(texture, (opt.texture_size, opt.texture_size))
+        texture = torch.tensor(texture, dtype=torch.float32, device=device)
+
+        # Time Render operation
         iter_start_time = time.time()
         out = renderer(texture)
-        key = render_logger.get_active_id()
-        print('Generated Image: #\t{} -- {} in {}'.format(i, key, time.time() - iter_start_time))
-        imwrite(out[:, :,   : 3], os.path.join(out_path, 'img',      '{}.png'.format(key)))
-        imwrite(out[:, :,  3: 4], os.path.join(out_path, 'mask',     '{}.png'.format(key)))
-        imwrite(out[:, :,  4: 7], os.path.join(out_path, 'position', '{}.png'.format(key)))
-        imwrite(out[:, :,  7:10], os.path.join(out_path, 'normal',   '{}.png'.format(key)))
-        imwrite(out[:, :, 10:13], os.path.join(out_path, 'albedo',   '{}.png'.format(key)))
-        json.dump({key: render_logger[key]}, backupfile)
+        render_time = time.time() - iter_start_time
+        print(f'Generated Image: #\t{i} -- {key} in {render_time}')
+        imwrite(out[...,  : 3], os.path.join(out_path, 'img',  f'{key}.png'))
+        imwrite(out[..., 3: 4], os.path.join(out_path, 'mask', f'{key}.png'))
 
-with open(os.path.join(out_path, 'data.json'), 'w') as metafile:
-    json.dump(render_logger.get_all(), metafile)
+        with open(os.path.join(out_path, 'data.json'), 'w') as metafile:
+            json.dump(log, metafile)
+
+if __name__ == '__main__':
+    main()

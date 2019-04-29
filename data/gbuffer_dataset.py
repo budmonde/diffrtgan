@@ -49,7 +49,7 @@ class GbufferDataset(BaseDataset):
         target_img_path = self.target_img_paths[index % self.target_img_size]
 
         config_key = get_fn(target_img_path)
-        label = get_fn(self.config[config_key]['geo_mesh_path'])
+        label = get_fn(self.config[config_key]['geometry_path'])
 
         target_mask_path = os.path.join(self.dir_target_mask, f'{config_key}.png')
         gbuffer_position_path = os.path.join(self.dir_gbuffer_position, f'{label}.png')

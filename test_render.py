@@ -6,48 +6,41 @@ from util.render_util import RenderConfig
 from util.torch_util import RenderLayer
 
 
-meshes_path = "./datasets/meshes/clean_serialized"
-envmaps_path = "./datasets/envmaps/hdrs"
-fineSize = 512
-num_samples = 200
-max_bounces = 1
 device = torch.device('cuda:0')
 opaque_path = "./datasets/textures/checkerboard.png"
-alpha_path = "./datasets/textures/decal.png"
+alpha_path = "./datasets/textures/opaque_red.png"
 
-render_config = RenderConfig({
+scene_dict = {
     'test': {
-        'geo_mesh_path': './datasets/meshes/serialized/octavia_clean.pth',
-        'tex_envmap_path': './datasets/envmaps/hdrs/lenong_1_1k.hdr',
-        'tex_envmap_signal_mean': 0.5,
-        'tex_envmap_rangle': 0.0,
-        'geo_rotation': [2.4363371599267785, 0.14922565104551516, 0.0],
-        'geo_translation': [0.0, -0.75, 0.0],
-        'geo_distance': 7.0,
-        'render_seed': 0,
+        'cam_rotation'      : [   2.5,  0.15,   0.0],
+        'cam_translation'   : [   0.0, -0.75,   0.0],
+        'cam_distance'      :     7.0,
+        'cam_fov'           : [  45.0],
+        'cam_resolution'    : [   512,   512],
+        'geometry_path'     : './datasets/meshes/serialized/octavia_clean.pth',
+        'tex_diffuse_color' : [   0.8,   0.8,   0.8],
+        'tex_specular_color': [   0.8,   0.8,   0.8],
+        'envmap_path'       : './datasets/envmaps/one/sunsky.exr',
+        'envmap_signal_mean':     0.5,
+        'envmap_rotation'   :     0.0,
+        'opt_num_samples'   : [   200,     1],
+        'opt_max_bounces'   :       2,
+        'opt_channels_str'  : ['radiance'],
+        'opt_render_seed'   :       0,
     }
-})
-render_config.set_config('test')
-render_kwargs = {
-    "meshes_path":  meshes_path,
-    "envmaps_path": envmaps_path,
-    "out_sz":       fineSize,
-    "num_samples":  num_samples,
-    "max_bounces":  max_bounces,
-    "device":       device,
-    "channels":     ["radiance"],
-    "config":       render_config,
 }
-render_layer = RenderLayer(**render_kwargs)
+render_config = RenderConfig()
+render_layer  = RenderLayer(render_config, device)
 
 opaque = torch.tensor(imread(opaque_path), dtype=torch.float32, device=device)
 alpha = torch.tensor(imread(alpha_path), dtype=torch.float32, device=device)
 
-for fpath in get_child_paths(meshes_path):
-    print(f'Rendering {fpath}')
-    render_config.data[render_config.cfg_id]['geo_mesh_path'] = fpath
-    name = get_fn(fpath)
-    out = render_layer(opaque)
-    imwrite(out, f'debug/new_mesh_qual/{name}.png')
-#out = render_layer(alpha)
-#imwrite(out, "debug/test_render_alpha_out.png")
+#for fpath in get_child_paths(meshes_path):
+#    print(f'Rendering {fpath}')
+#    render_config.data[render_config.cfg_id]['geo_mesh_path'] = fpath
+#    name = get_fn(fpath)
+#    out = render_layer(opaque)
+#    imwrite(out, f'debug/new_mesh_qual/{name}.png')
+render_config.set_scene(scene_dict['test'])
+out = render_layer(alpha)
+imwrite(out, "debug/test_render_alpha_out.png")

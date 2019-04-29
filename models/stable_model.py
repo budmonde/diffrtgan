@@ -27,13 +27,6 @@ class StableModel(BaseModel):
                 input_nc=6,
                 loadSize=256,
         )
-        # Render Config
-        parser.add_argument('--meshes_path', type=str, default='./datasets/meshes/serialized', help='Path of mesh pool to render')
-        parser.add_argument('--envmaps_path', type=str, default='./datasets/envmaps/hdrs', help='Path of envmap pool to render')
-        parser.add_argument('--mc_samples_forward', type=int, default=200, help='Number of Monte-Carlo subsamples per-pixel on forward rendering step')
-        parser.add_argument('--mc_samples_backward', type=int, default=4, help='Number of Monte-Carlo subsamples per-pixel on backward rendering step')
-        parser.add_argument('--mc_max_bounces', type=int, default=2, help='Max number of Monte-Carlo bounces ray on rendering step')
-
         # Visuals Config
         parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/composit_background.png', help='Compositing background used for visualization of semi-transparent textures')
 
@@ -78,17 +71,9 @@ class StableModel(BaseModel):
         )
 
         # 3. Render Image
-        self.render_config = RenderConfig(json.loads(open(os.path.join(opt.dataroot, 'data.json')).read()))
-        render_kwargs = {
-            "meshes_path":  opt.meshes_path,
-            "envmaps_path": opt.envmaps_path,
-            "out_sz":       opt.fineSize,
-            "num_samples":  (opt.mc_samples_forward, opt.mc_samples_backward),
-            "max_bounces":  opt.mc_max_bounces,
-            "device":       self.device,
-            "config":       self.render_config,
-        }
-        self.render = RenderLayer(**render_kwargs)
+        self.scene_dict = json.loads(open(os.path.join(opt.dataroot, 'data.json')).read())
+        self.render_config = RenderConfig()
+        self.render        = RenderLayer(self.render_config, self.device)
 
         # 4. Post-processing:
         #    - Add Signal Noise
@@ -158,7 +143,7 @@ class StableModel(BaseModel):
         self.synth_tex = self.pre_process(self.synth_tex)
         self.synth_tex = self.synth_tex * self.gbuffer_mask
         # Set camera parameters and pass to renderer
-        self.render_config.set_config(self.config_key)
+        self.render_config.set_scene(self.scene_dict[self.config_key])
         self.synth = self.render(self.synth_tex)
         # Post-process
         self.synth = torch.cat([self.synth, self.target_mask], dim=-1)
@@ -173,11 +158,11 @@ class StableModel(BaseModel):
     def backward_D_basic(self, netD, real, fake):
         # Real
         pred_real = netD(real)
-        pred_real = pred_real * self.disc_mask
+        #pred_real = pred_real * self.disc_mask
         loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
         pred_fake = netD(fake.detach())
-        pred_fake = pred_fake * self.disc_mask
+        #pred_fake = pred_fake * self.disc_mask
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5
