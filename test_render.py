@@ -7,8 +7,7 @@ from util.torch_util import RenderLayer
 
 
 device = torch.device('cuda:0')
-opaque_path = "./datasets/textures/checkerboard.png"
-alpha_path = "./datasets/textures/opaque_red.png"
+path = "./datasets/textures/dirt/octavia_clean.png"
 
 scene_dict = {
     'test': {
@@ -32,8 +31,7 @@ scene_dict = {
 render_config = RenderConfig()
 render_layer  = RenderLayer(render_config, device)
 
-opaque = torch.tensor(imread(opaque_path), dtype=torch.float32, device=device)
-alpha = torch.tensor(imread(alpha_path), dtype=torch.float32, device=device)
+img = torch.tensor(imread(path), dtype=torch.float32, device=device)
 
 #for fpath in get_child_paths(meshes_path):
 #    print(f'Rendering {fpath}')
@@ -42,5 +40,5 @@ alpha = torch.tensor(imread(alpha_path), dtype=torch.float32, device=device)
 #    out = render_layer(opaque)
 #    imwrite(out, f'debug/new_mesh_qual/{name}.png')
 render_config.set_scene(scene_dict['test'])
-out = render_layer(alpha)
-imwrite(out, "debug/test_render_alpha_out.png")
+out = render_layer(img)
+imwrite(out, "debug/test_render_out.png")
