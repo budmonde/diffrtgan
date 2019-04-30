@@ -5,11 +5,13 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
+
 from . import networks
 from .base_model import BaseModel
 from util.image_pool import ImagePool
 from util.image_util import imread, grey2heatmap
 from util.render_util import RenderConfig
+from util.sample_util import *
 from util.torch_util import *
 
 
@@ -73,6 +75,12 @@ class StableModel(BaseModel):
         # 3. Render Image
         self.scene_dict = json.loads(open(os.path.join(opt.dataroot, 'data.json')).read())
         self.render_config = RenderConfig()
+        self.override = ConfigSampler({
+            #'envmap_path'   : PathSamplerFactory(
+            #    './datasets/envmaps/rasters', ext='exr'),
+            'envmap_rotation'    : UniformSamplerFactory(0.0, 1.0),
+        })
+
         self.render        = RenderLayer(self.render_config, self.device)
 
         # 4. Post-processing:
@@ -143,7 +151,11 @@ class StableModel(BaseModel):
         self.synth_tex = self.pre_process(self.synth_tex)
         self.synth_tex = self.synth_tex * self.gbuffer_mask
         # Set camera parameters and pass to renderer
-        self.render_config.set_scene(self.scene_dict[self.config_key])
+        scene = self.scene_dict[self.config_key]
+        scene_override = self.override.generate()
+        for k, v in scene_override.items():
+            scene[k] = v
+        self.render_config.set_scene(scene)
         self.synth = self.render(self.synth_tex)
         # Post-process
         self.synth = torch.cat([self.synth, self.target_mask], dim=-1)
