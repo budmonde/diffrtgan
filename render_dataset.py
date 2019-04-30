@@ -21,8 +21,10 @@ def main():
             default='./datasets/meshes/clean_serialized')
     parser.add_argument('--envmaps_path', type=str,
             default='./datasets/envmaps/one')
+    parser.add_argument('--diffuse_refl_path', type=str,
+            default='./datasets/distributions/diffuse.txt')
     parser.add_argument('--textures_path', type=str,
-            default='./datasets/textures/height')
+            default='./datasets/textures/curve')
     parser.add_argument('--texture_size', type=int, default=256)
     # Output args
     parser.add_argument('--root_path', type=str, default='./datasets/renders/')
@@ -49,7 +51,7 @@ def main():
         'cam_fov'            : ConstantSamplerFactory([45.0]),
         'cam_resolution'     : ConstantSamplerFactory([256, 256]),
         'geometry_path'      : PathSamplerFactory(opt.geometry_path, ext='pth'),
-        'tex_diffuse_color'  : ConstantSamplerFactory([0.8, 0.8, 0.8]),
+        'tex_diffuse_color'  : RGBFileSamplerFactory(opt.diffuse_refl_path),
         'tex_specular_color' : ConstantSamplerFactory([0.8, 0.8, 0.8]),
         'envmap_path'        : PathSamplerFactory(opt.envmaps_path, ext='exr'),
         'envmap_signal_mean' : ConstantSamplerFactory(0.5),

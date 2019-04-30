@@ -31,6 +31,20 @@ def RandIntSamplerFactory(min_val, max_val):
         return random.randint(min_val, max_val)
     return sampler
 
+def UniformSamplerFactory(min_val, max_val):
+    def sampler():
+        return random.uniform(min_val, max_val)
+    return sampler
+
+def RGBFileSamplerFactory(fpath):
+    with open(fpath) as f:
+        options = [
+                [float(v)/255.0 for v in s.split(' ')]
+                for s in f.read().strip('\n').split('\n')]
+    def sampler():
+        return random.choice(options)
+    return sampler
+
 # Note: the ranges are normalized to the range (0, 1)
 def HemisphereSamplerFactory(azimuth_range, elevation_range, up_range):
     def sampler():
