@@ -16,9 +16,6 @@ from util.torch_util import *
 
 
 class StableModel(BaseModel):
-    def name(self):
-        return 'StableModel'
-
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         parser.set_defaults(
@@ -27,7 +24,7 @@ class StableModel(BaseModel):
                 no_dropout=True,
                 display_ncols=5,
                 input_nc=6,
-                loadSize=256,
+                load_size=256,
         )
         # Visuals Config
         parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/composit_background.png', help='Compositing background used for visualization of semi-transparent textures')
@@ -37,8 +34,8 @@ class StableModel(BaseModel):
 
         return parser
 
-    def initialize(self, opt):
-        BaseModel.initialize(self, opt)
+    def __init__(self, opt):
+        BaseModel.__init__(self, opt)
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['D', 'G']
@@ -60,7 +57,7 @@ class StableModel(BaseModel):
 
         # 1. Generate Texture from Gbuffer prior
         self.netG = networks.define_G(opt.input_nc, opt.texture_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+                                      not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         # 2. Pre-processing:
         #    - Strip batch dimension
         #    - Normalize to [0,1] domain
@@ -95,7 +92,7 @@ class StableModel(BaseModel):
         }
         composit_kwargs = {
             "background": np.array([[[0.0, 0.0, 0.0]]]),
-            "size": opt.fineSize,
+            "size": opt.crop_size,
             "device": self.device,
         }
         self.post_process = nn.Sequential(
@@ -110,7 +107,7 @@ class StableModel(BaseModel):
 
         visdom_kwargs = {
             "background": background,
-            "size": opt.fineSize,
+            "size": opt.crop_size,
             "device": self.device,
         }
         self.composit_layer = NormalizedCompositLayer(**visdom_kwargs)
@@ -118,14 +115,13 @@ class StableModel(BaseModel):
         ### End Generator Pipeline ###
 
         if self.isTrain:
-            use_sigmoid = opt.no_lsgan
             self.netD = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain, self.gpu_ids)
+                                          opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
             self.synth_pool = ImagePool(opt.pool_size)
             # define loss functions
-            self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan).to(self.device)
+            self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -183,8 +179,8 @@ class StableModel(BaseModel):
 
         # Visualize heatmap
         with torch.no_grad():
-            self.heatmap_real = grey2heatmap(pred_real.clone(), self.opt.fineSize)
-            self.heatmap_fake = grey2heatmap(pred_fake.clone(), self.opt.fineSize)
+            self.heatmap_real = grey2heatmap(pred_real.clone(), self.opt.crop_size)
+            self.heatmap_fake = grey2heatmap(pred_fake.clone(), self.opt.crop_size)
 
         return loss_D
 

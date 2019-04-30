@@ -1,13 +1,14 @@
-name: rendergan
+name: pytorch-CycleGAN-and-pix2pix
 channels:
+- peterjc123
 - defaults
 dependencies:
-- python=3.6.6
+- python=3.5.5
 - pytorch=0.4.1
 - scipy
 - pip:
-  - dominate==2.3.4
+  - dominate==2.3.1
   - git+https://github.com/pytorch/vision.git
-  - Pillow==5.3.0
-  - numpy==1.15.4
-  - visdom==0.1.8.5
+  - Pillow==5.0.0
+  - numpy==1.14.1
+  - visdom==0.1.7
