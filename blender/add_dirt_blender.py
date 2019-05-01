@@ -16,6 +16,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_path', required=True, help='input path')
     parser.add_argument('--output_path', required=True, help='output path')
+    parser.add_argument('--albedo_r', type=float, required=True)
+    parser.add_argument('--albedo_g', type=float, required=True)
+    parser.add_argument('--albedo_b', type=float, required=True)
     opt = parser.parse_args(argv)
 
     # Init empty blender scene
@@ -26,7 +29,7 @@ def main():
     bpy.ops.import_scene.obj(filepath=opt.input_path)
 
     # Load crevice dirt shader
-    with bpy.data.libraries.load('./dirty_paint.blend', link=True) as (data_src, data_dst):
+    with bpy.data.libraries.load('./blender/dirty_paint.blend', link=True) as (data_src, data_dst):
         data_dst.node_groups = ['crevice_dirt']
 
     # TODO: Not sure what this does. should try disabling later
@@ -48,7 +51,8 @@ def main():
     # Set diffuse node to white
     for node in nodes:
         if node.name.startswith('Mix.002'):
-            node.inputs[1].default_value = [0.8, 0.8, 0.8, 1.0]
+            node.inputs[1].default_value = [
+                    opt.albedo_r, opt.albedo_g, opt.albedo_b, 1.0]
 
 
     # Find the output node
@@ -66,7 +70,7 @@ def main():
     crevice_dirt.inputs[ 3].default_value = 1.0
     crevice_dirt.inputs[ 4].default_value = 0.8
     crevice_dirt.inputs[ 5].default_value = 1.0
-    crevice_dirt.inputs[ 6].default_value = 0.4
+    crevice_dirt.inputs[ 6].default_value = 0.6
     crevice_dirt.inputs[ 7].default_value = 0.8
     crevice_dirt.inputs[ 8].default_value = 0.0
     crevice_dirt.inputs[ 9].default_value = 0.2
