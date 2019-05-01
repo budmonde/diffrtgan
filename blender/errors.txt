@@ -1,0 +1,29 @@
+// Errors in v1
+porsche918_spyder/918-skect_clean.blend car_paint
+mustang/Ford_1968_Mustang_GT_Fastback_clean.blend car_paint
+thunderbird/Ford/Fordtest1957_clean.blend car_paint
+peugot404/Pegout_clean.blend car_paint
+porsche993/Porsche993_GT2_clean.blend car_paint
+skoda/Skoda_Octavia_I_facelift_clean.blend car_paint
+acura/acura_nsx_clean.blend car_paint
+bmw335/bmw335_clean.blend car_paint
+bmw_m3/bmw_m3_e46_clean.blend car_paint
+fiat500blandswap/fiat500blandswap_clean.blend car_paint
+
+
+//
+// removed from full list
+//
+hondafit/AFinalHondaFit_clean.blend car_paint
+bugatti/Blender_Bugatti_clean.blend car_paint
+camaro/Camaro_clean.blend car_paint
+
+// delete Ground
+audi_spyder/Audi_R8_2017_clean.blend car_paint
+
+// delete Light
+audi/Audi_R8_clean.blend car_paint
+maserati/maserati_grancabrio_clean.blend car_paint
+
+// Weird null texture
+evo/Evo_clean.blend car_paint
