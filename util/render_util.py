@@ -30,10 +30,11 @@ class RenderConfig(object):
 
 
 class Render(object):
-    def __init__(self, config, device):
+    def __init__(self, config, device, isTrain = False):
         super(Render, self).__init__()
         # Initialize scene metadata config
         self.config = config
+        self.isTrain = isTrain
 
         # Redner GPU Configs
         self.device = device
@@ -65,8 +66,9 @@ class Render(object):
         opt_render_seed        = self.config('opt_render_seed')
 
         # XXX: Temporary hack for training override
-        opt_num_samples = (200, 1)
-        opt_channels_str = ['radiance']
+        if self.isTrain:
+            opt_num_samples = (200, 1)
+            opt_channels_str = ['radiance']
 
         ### Load configs as pyredner primitives ###
 
