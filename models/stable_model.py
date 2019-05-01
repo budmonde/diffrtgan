@@ -25,6 +25,7 @@ class StableModel(BaseModel):
                 display_ncols=5,
                 input_nc=6,
                 load_size=256,
+                gan_mode='wgangp'
         )
         # Visuals Config
         parser.add_argument('--viz_composit_bkgd_path', type=str, default='./datasets/textures/composit_background.png', help='Compositing background used for visualization of semi-transparent textures')
@@ -166,11 +167,11 @@ class StableModel(BaseModel):
     def backward_D_basic(self, netD, real, fake):
         # Real
         pred_real = netD(real)
-        #pred_real = pred_real * self.disc_mask
+        pred_real = pred_real * self.disc_mask
         loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
         pred_fake = netD(fake.detach())
-        #pred_fake = pred_fake * self.disc_mask
+        pred_fake = pred_fake * self.disc_mask
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5
