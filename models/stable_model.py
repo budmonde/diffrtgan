@@ -79,7 +79,7 @@ class StableModel(BaseModel):
             'envmap_rotation'    : UniformSamplerFactory(0.0, 1.0),
         })
 
-        self.render        = RenderLayer(self.render_config, self.device)
+        self.render        = RenderLayer(self.render_config, self.device, True)
 
         # 4. Post-processing:
         #    - Add Signal Noise
