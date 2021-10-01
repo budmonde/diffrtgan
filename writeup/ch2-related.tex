@@ -1,0 +1,64 @@
+\chapter{Related Work}
+
+\section{Texture synthesis and style transfer}
+
+Our task shares similarities with texture synthesis and style transfer. In both tasks, the
+objective is to separate the information describing \emph{what} the scene is from \emph{how}
+it was depicted -- what style the scene was created in. E.g. a dataset of paintings of
+architecture depicts some architectural scenery stylized as paintings. Texture synthesis
+focuses on extracting the style of an image while style transfer focuses on morphing the
+style of a scene. However, these tasks are ill-posed as the distinction between a scene and
+its style is not well defined. Some work in the literature acknowledge this limitation and
+propose methods that incorporate the distinction as part of the
+problem~\cite{isola2017image, zhu2017unpaired} while others use perceptual judgment to
+optimize for the best
+results~\cite{gatys2015texture, gatys2016image, ulyanov2016texture, johnson2016perceptual}.
+Other solutions assume the input image contains only style content and attempt to produce
+similar images of the given texture \cite{wei2009sae, sendik2017deep, zhou2018non}. 
+
+Fortunately, in our case, the distinction between the scene and style is concretely defined;
+the scene is specified by the surface geometry, while the style is defined by the shading
+materials used in the rendering pipeline.
+
+The state-of-the-art approach for the task of texture-synthesis and style-transfer is to
+train a Generative Adversarial Network~\cite{goodfellow2014generative} that generates the
+desired output~\cite{johnson2016perceptual, isola2017image, zhu2017unpaired, zhou2018non}.
+We base our network architecture from the CycleGAN model by Zhu et al.~\cite{zhu2017unpaired}.
+
+\section{Physically-based appearance modeling}
+
+Work in appearance modeling use the geometry of the models to simulate physical phenomena, such
+as erosion of terrains~\cite{musgrave1989eroded}, chemical diffusion~\cite{turk1991diffusion},
+metallic patinas~\cite{dorsey1996patinas}, wet materials~\cite{jensen1999wet}, weathering
+(e.g.~\cite{dorsey1999weather, chen2005weathering, bosch2011weathering}). These methods
+generate convincing materials from geometry, but need to use dedicated simulation methods for
+different scenarios. In contrast our method is fully data-driven and does not rely on knowing
+the physics of the materials. Combining two approaches remain an interesting research avenue.
+
+Some other methods assume flat geometry, but use a more elaborate material model
+(e.g.~\cite{barron2015sir, aittala2015two, deschaintre2018single}). These methods deliver
+high-quality textures but do not take geometry into consideration.
+
+\section{Deep learning models for computer graphics}
+
+Applications of deep learning models in computer graphics literature is hindered due to the
+complex operations used in the graphics pipeline. Specifically, using 2D rendered images to
+infer an underlying 3D scene geometry relies on differentiating the rendering function.
+A generative model with a differentiable renderer makes it possible to optimize the model
+parameters using a loss function computed from a rendered image of a 3D scene which contains
+the generator output. 
+
+A variety of methods propose models for indirectly differentiating the rendering function
+by optimizing a neural network to emulate
+it~\cite{kulkarni2015deep, nguyen2018rendernet, nguyen2019hologan}. Others propose
+differentiable rasterization algorithms tailored for their use
+case~\cite{genova2018unsupervised, liu2019soft}. To our best knowledge, there is no prior
+work in generative deep learning models featuring a general purpose ray tracer.
+
+Our method incorporates the differentiable ray tracer by Li et
+al.~\cite{li2018differentiable} into our model. This ray tracer is able to compute
+derivatives of the Monte-Carlo path tracing algorithm for arbitrary scenes with surfaces
+represented as triangle-meshes with respect to any scene parameters such as triangle-mesh
+vertices, shading materials, and camera poses. The advantage of using this ray tracer over
+others is that we are able to extract any desired scene variable explicitly which is useful
+in most practical applications.

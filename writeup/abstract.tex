@@ -1,0 +1,10 @@
+In this thesis we propose a learning approach for generating realistic SVBRDFs
+using generative adversarial models and differentiable rendering. Our model
+learns a mapping from the \emph{geometry buffer} of a surface to a corresponding
+albedo texture-map by training on images of the same surface rendered using a
+target texture-map. A key feature of this learning process is the ability to
+differentiate the render function within our model; this enables the optimization
+of the texture-map generator parameters using a loss function computed from the
+rendered 2D images. Our results show that differentiable rendering is applicable
+in complex neural network models such as GANs, opening up opportunities for more
+applications of deep learning methods in the computer graphics pipeline.

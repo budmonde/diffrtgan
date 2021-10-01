@@ -1,0 +1,59 @@
+\chapter{System Overview} \label{app:system-overview}
+
+We implemented the model using the auto-differentiation library PyTorch~\cite{paszke2017automatic}.
+Most of our code was written in Python, and several auxiliary mesh processing scripts use the Blender
+Python API. Our pipeline features:
+%
+\begin{itemize}
+\renewcommand\labelitemi{--}
+    \item a GAN model architecture featuring the differentiable ray tracer~\cite{li2018differentiable}
+    \item a dataset generation pipeline which uses the same ray tracer as our model
+    \item auxilliary input pre-processing scripts.
+\end{itemize}
+
+Our codebase structure is based off of the PyTorch implementation by Zhu et al.~\cite{zhu2017unpaired},
+and Isola et al.~\cite{isola2017image}. For features of the codebase such as network implementations, GAN
+model setup, and training scripts, we refer to their github repository at
+\url{https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix}. In this chapter, we describe the modules of
+the codebase that relate to the differentiable rendering and dataset generation process.
+
+\section{Render Utilities}
+
+The differentiable ray tracer~\cite{li2018differentiable} presents an generic interface that is not
+necessarily purposed for the PyTorch neural network module. We add a wrapper to the ray tracer so that
+we can add the render operation into a PyTorch neural network as a \texttt{RenderLayer}. As
+described in Chapter~\ref{ch:method}, the \texttt{RenderLayer} takes as input the scene description $\Phi$
+and a texture-map to render an image. The scene description $\Phi$ is specified by the ray tracer
+primitives, and the texture-map is a $(\text{Height} \times \text{Width} \times \text{Channel})$ PyTorch
+Tensor object. The last dimension of the Tensor encodes the \texttt{RGBA} values for each pixel.
+
+Native PyTorch neural network modules are laid out in $(\text{Batch} \times \text{Channel} \times
+\text{Height} \times \text{Width})$ order. In order to convert between these formats, we implement custom
+network layers that handle the conversion.
+
+Loading large files containing car triangle-meshes and swapping them out at each iteration slows down the
+rendering process significantly. Additionally, since we're dealing with over 100 triangle-meshes during
+training, we cannot load all the car models into GPU memory simultaneously. To mitigate these issues we
+pre-process all elements in the scene description $\Phi$ by loading them into memory and storing them to
+disk in its pickled format.
+
+\section{Dataset Generation}
+
+When we generate a dataset for training, our goal is to have a high degree of control for the output
+datasets. In Chapter~\ref{ch:experiment} we presented results from training our model on datasets with
+different distributions of the scene description, $\Phi$. We implemented a \texttt{ConfigSampler} that
+allows us to specify what kind of distributions to sample $\Phi$ from. When generating each image of the
+new dataset, the \texttt{ConfigSampler} samples $\Phi$ from the specified distribution and renders an image
+specified by $\Phi$ and stores $\Phi$ to disk. During training, we use the ground truth $\Phi$, to generate
+a similar scene description $\Phi_{training}$. This setup allows us to test the resilience of our model
+with respect to errors introduced to $\Phi$.
+
+\section{Auxiliary Scripts}
+
+We provide several auxiliary scripts for
+\begin{itemize}
+\renewcommand\labelitemi{--}
+    \item adding a spherical parameterization for meshes
+    \item generating the \emph{geometry buffer} for a spherically parametrized mesh
+    \item generating dirt texture-maps for a car mesh using the Blender API.
+\end{itemize}
